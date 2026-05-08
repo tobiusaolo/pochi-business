@@ -26,7 +26,7 @@ const RegistrationPage = () => {
     setLoading(true);
     
     try {
-      await axios.post('http://pakacha.com/api/v1/auth/business/register', formData);
+      await axios.post('https://pakacha.com/api/v1/auth/business/register', formData);
       
       Swal.fire({
         icon: 'success',

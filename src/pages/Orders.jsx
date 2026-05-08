@@ -27,7 +27,7 @@ const Orders = () => {
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://pakacha.com/api/v1/orders/business', {
+      const res = await axios.get('https://pakacha.com/api/v1/orders/business', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(res.data);

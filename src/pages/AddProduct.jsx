@@ -32,7 +32,7 @@ const AddProduct = () => {
         category_id: formData.categoryId || null
       };
 
-      await axios.post('http://pakacha.com/api/v1/products/', payload, {
+      await axios.post('https://pakacha.com/api/v1/products/', payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('Product published successfully!');

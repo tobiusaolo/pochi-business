@@ -18,7 +18,7 @@ const LoginPage = () => {
     setLoading(true);
     
     try {
-      const response = await axios.post('http://pakacha.com/api/v1/auth/business/login', 
+      const response = await axios.post('https://pakacha.com/api/v1/auth/business/login', 
       new URLSearchParams({
         username: formData.email,
         password: formData.password
