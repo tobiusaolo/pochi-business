@@ -21,10 +21,10 @@ const Payments = () => {
       try {
         const token = localStorage.getItem('token');
         const [sumRes, transRes] = await Promise.all([
-          axios.get('http://146.190.202.220/api/v1/payments/summary', {
+          axios.get('http://pakacha.com/api/v1/payments/summary', {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          axios.get('http://146.190.202.220/api/v1/payments/transactions', {
+          axios.get('http://pakacha.com/api/v1/payments/transactions', {
             headers: { Authorization: `Bearer ${token}` }
           })
         ]);

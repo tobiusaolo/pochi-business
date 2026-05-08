@@ -32,7 +32,7 @@ const CategoriesPage = () => {
   const fetchCategories = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://146.190.202.220/api/v1/categories/', {
+      const res = await axios.get('http://pakacha.com/api/v1/categories/', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCategories(res.data);
@@ -60,11 +60,11 @@ const CategoriesPage = () => {
     try {
       const token = localStorage.getItem('token');
       if (drawerMode === 'EDIT') {
-        await axios.patch(`http://146.190.202.220/api/v1/categories/${selectedCategory.id}`, formData, {
+        await axios.patch(`http://pakacha.com/api/v1/categories/${selectedCategory.id}`, formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post('http://146.190.202.220/api/v1/categories/', formData, {
+        await axios.post('http://pakacha.com/api/v1/categories/', formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
@@ -97,7 +97,7 @@ const CategoriesPage = () => {
     if (result.isConfirmed) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`http://146.190.202.220/api/v1/categories/${id}`, {
+        await axios.delete(`http://pakacha.com/api/v1/categories/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         Swal.fire('Deleted!', 'Category removed.', 'success');

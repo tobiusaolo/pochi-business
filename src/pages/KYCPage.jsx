@@ -65,7 +65,7 @@ const KYCPage = () => {
       };
 
       const token = localStorage.getItem('token');
-      await axios.patch('http://146.190.202.220/api/v1/business/kyc', payload, {
+      await axios.patch('http://pakacha.com/api/v1/business/kyc', payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

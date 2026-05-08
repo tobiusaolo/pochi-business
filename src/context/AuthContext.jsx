@@ -13,7 +13,7 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (!token) return;
       
-      const res = await axios.get('http://146.190.202.220/api/v1/business/me', {
+      const res = await axios.get('http://pakacha.com/api/v1/business/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBusiness(res.data);

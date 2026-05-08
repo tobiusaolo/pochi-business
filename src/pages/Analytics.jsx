@@ -27,7 +27,7 @@ const Analytics = () => {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('http://146.190.202.220/api/v1/admin/business/stats', {
+        const res = await axios.get('http://pakacha.com/api/v1/admin/business/stats', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setStats(res.data);
