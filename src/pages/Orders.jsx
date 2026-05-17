@@ -9,8 +9,14 @@ import {
 import './Orders.css';
 
 const Orders = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_orders');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -24,6 +30,25 @@ const Orders = () => {
     fetchOrders();
   }, []);
 
+  useEffect(() => {
+    const handleNewOrder = () => {
+      console.log("Real-time business order event received. Reloading...");
+      fetchOrders();
+    };
+    const handleStatusChanged = () => {
+      console.log("Real-time business order status changed event received. Reloading...");
+      fetchOrders();
+    };
+
+    window.addEventListener('poch-biz-order-new', handleNewOrder);
+    window.addEventListener('poch-biz-order-status-changed', handleStatusChanged);
+
+    return () => {
+      window.removeEventListener('poch-biz-order-new', handleNewOrder);
+      window.removeEventListener('poch-biz-order-status-changed', handleStatusChanged);
+    };
+  }, []);
+
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -31,10 +56,9 @@ const Orders = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(res.data);
+      localStorage.setItem('cached_orders', JSON.stringify(res.data));
     } catch (err) {
       console.error('Failed to fetch orders');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -79,7 +103,7 @@ const Orders = () => {
   const pendingOrdersCount = filteredOrders.filter(o => o.status === 'PENDING').length;
   const cancelledOrdersCount = filteredOrders.filter(o => o.status === 'CANCELLED').length;
 
-  if (loading) return <div className="loader">Loading...</div>;
+
 
   return (
     <div className="orders-container animate-fade">

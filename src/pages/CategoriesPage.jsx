@@ -10,8 +10,14 @@ import Swal from 'sweetalert2';
 import './CategoriesPage.css';
 
 const CategoriesPage = () => {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_categories');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState('ADD'); // ADD, EDIT, VIEW
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -36,10 +42,9 @@ const CategoriesPage = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCategories(res.data);
+      localStorage.setItem('cached_categories', JSON.stringify(res.data));
     } catch (err) {
       console.error('Failed to fetch categories');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -118,7 +123,7 @@ const CategoriesPage = () => {
     setMenuOpenId(menuOpenId === id ? null : id);
   };
 
-  if (loading) return <div className="loader">Loading Categories...</div>;
+
 
   return (
     <div className="categories-container animate-fade">

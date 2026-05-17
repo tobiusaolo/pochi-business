@@ -5,18 +5,29 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [business, setBusiness] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [business, setBusiness] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_business');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    // If we have a cached business, we can show the portal immediately
+    return !localStorage.getItem('cached_business');
+  });
 
   const fetchBusiness = async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      
+
       const res = await axios.get('https://pakacha.com/api/v1/business/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBusiness(res.data);
+      localStorage.setItem('cached_business', JSON.stringify(res.data));
     } catch (err) {
       console.error('Auth Error:', err.response?.data?.detail || err.message);
       if (err.response?.status === 403) {
@@ -46,11 +57,15 @@ export const AuthProvider = ({ children }) => {
 
   const login = (token) => {
     localStorage.setItem('token', token);
-    fetchBusiness();
+    if (!localStorage.getItem('cached_business')) {
+      setLoading(true);
+    }
+    fetchBusiness().finally(() => setLoading(false));
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('cached_business');
     setBusiness(null);
     setUser(null);
   };

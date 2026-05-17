@@ -5,25 +5,18 @@ import { Link } from 'react-router-dom';
 import './Analytics.css';
 
 const Analytics = () => {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cache_business_stats');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.basic_stats) return parsed;
+      }
+    } catch {}
+    return null;
+  });
 
   useEffect(() => {
-    // Expert Caching: Load from cache first for instant UI
-    const cachedStats = localStorage.getItem('cache_business_stats');
-    if (cachedStats) {
-      try {
-        const parsed = JSON.parse(cachedStats);
-        // Only use cache if it has the new structure to prevent crashes
-        if (parsed?.basic_stats) {
-          setStats(parsed);
-          setLoading(false);
-        }
-      } catch (e) {
-        localStorage.removeItem('cache_business_stats');
-      }
-    }
-
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -34,14 +27,12 @@ const Analytics = () => {
         localStorage.setItem('cache_business_stats', JSON.stringify(res.data));
       } catch (err) {
         console.error('Failed to fetch analytics');
-      } finally {
-        setLoading(false);
       }
     };
     fetchStats();
   }, []);
 
-  if (loading && !stats) return <div className="loader">Loading Analytics...</div>;
+
 
   return (
     <div className="analytics-container animate-fade">

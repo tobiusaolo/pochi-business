@@ -895,3 +895,73 @@
     height: 100%;
     object-fit: cover;
 }
+
+/* Spinner animation for publishing progress */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+.spinner-icon {
+    margin-right: 8px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Premium Card Price Groups */
+.price-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.price-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.price-tag .lbl {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    width: 48px; /* Fixed width to align prices perfectly */
+}
+
+.price-tag .currency {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.price-tag.base .amount {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.price-tag.base .lbl, .price-tag.base .currency {
+    color: #64748b;
+}
+
+.price-tag.listing .amount {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.price-tag.listing .lbl {
+    color: var(--primary);
+}
+
+.price-tag.listing .currency {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+

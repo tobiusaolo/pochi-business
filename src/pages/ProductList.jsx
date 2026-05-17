@@ -4,20 +4,34 @@ import {
   Package, Plus, X, ArrowRight, ArrowLeft, Check, Tag, 
   Search, Filter, ChevronRight, MoreVertical, Eye, 
   Trash2, Edit3, ShoppingCart, Activity, Layers, Upload, Image as ImageIcon, ChevronDown, DollarSign,
-  Info, Calendar, BarChart, Percent, AlertCircle, HelpCircle
+  Info, Calendar, BarChart, Percent, AlertCircle, HelpCircle, Loader2
 } from 'lucide-react';
 import './ProductList.css';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 const ProductList = () => {
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_products');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [categories, setCategories] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_categories');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState('ADD'); // ADD, EDIT, VIEW
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [menuOpenSku, setMenuOpenSku] = useState(null);
+  const [isPublishing, setIsPublishing] = useState(false);
   
   const [viewImageIndex, setViewImageIndex] = useState(0);
   
@@ -49,10 +63,11 @@ const ProductList = () => {
   const fetchCategories = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('https://pakacha.com/api/v1/categories/', {
+      const res = await axios.get(`https://pakacha.com/api/v1/categories/?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCategories(res.data);
+      localStorage.setItem('cached_categories', JSON.stringify(res.data));
     } catch (err) {
       console.error('Failed to fetch categories');
     }
@@ -61,14 +76,13 @@ const ProductList = () => {
   const fetchProducts = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('https://pakacha.com/api/v1/products/my-products', {
+      const res = await axios.get(`https://pakacha.com/api/v1/products/my-products?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setProducts(res.data);
+      localStorage.setItem('cached_products', JSON.stringify(res.data));
     } catch (err) {
       console.error('Failed to fetch products');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -95,6 +109,7 @@ const ProductList = () => {
 
   const handlePublish = async () => {
     try {
+      setIsPublishing(true);
       const token = localStorage.getItem('token');
       const payload = {
         name: formData.name,
@@ -114,11 +129,13 @@ const ProductList = () => {
         });
       }
       
-      Swal.fire({ icon: 'success', title: 'Product Saved', timer: 2000, showConfirmButton: false });
+      await fetchProducts();
       setIsDrawerOpen(false);
-      fetchProducts();
+      Swal.fire({ icon: 'success', title: 'Product Saved', timer: 2000, showConfirmButton: false });
     } catch (err) {
       Swal.fire('Error', 'Operation failed', 'error');
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -162,8 +179,6 @@ const ProductList = () => {
     e.stopPropagation();
     setMenuOpenSku(menuOpenSku === sku ? null : sku);
   };
-
-  if (loading && products.length === 0) return <div className="loader">Loading...</div>;
 
   return (
     <div className="product-list-container animate-fade">
@@ -271,7 +286,7 @@ const ProductList = () => {
                 <div className="card-footer-row">
                   <div className="price-tag">
                     <span className="currency">UGX</span>
-                    <span className="amount">{product.base_price?.toLocaleString()}</span>
+                    <span className="amount">{Math.round(product.listing_price || (product.base_price * 1.05))?.toLocaleString()}</span>
                   </div>
                   <button className="view-details-btn" onClick={() => openDrawer('VIEW', product)}>
                     <ChevronRight size={18} />
@@ -450,15 +465,25 @@ const ProductList = () => {
           {drawerMode !== 'VIEW' && (
             <div className="drawer-footer">
               {step > 1 && (
-                <button className="btn-secondary-expert" onClick={() => setStep(step - 1)}>
+                <button className="btn-secondary-expert" onClick={() => setStep(step - 1)} disabled={isPublishing}>
                   <ArrowLeft size={18} /> Previous
                 </button>
               )}
               <button 
                 className="btn-primary-expert" 
                 onClick={() => step < 3 ? setStep(step + 1) : handlePublish()}
+                disabled={isPublishing}
               >
-                {step === 3 ? 'Publish Listing' : 'Continue'} <ArrowRight size={18} />
+                {isPublishing ? (
+                  <>
+                    <Loader2 className="spinner-icon animate-spin" size={18} />
+                    <span>Publishing...</span>
+                  </>
+                ) : (
+                  <>
+                    {step === 3 ? 'Publish Listing' : 'Continue'} <ArrowRight size={18} />
+                  </>
+                )}
               </button>
             </div>
           )}
