@@ -22,6 +22,8 @@ const KYCPage = () => {
     idBack: null
   });
   const [loading, setLoading] = useState(false);
+  const MAX_FILE_SIZE_MB = 5;
+  const MAX_TOTAL_SIZE_MB = 20;
 
   const handleFileChange = (e) => {
     const name = e.target.name;
@@ -42,31 +44,40 @@ const KYCPage = () => {
     setPreviews({ ...previews, [name]: null });
   };
 
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      if (!file) return resolve(null);
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const payload = {
-        logo_b64: await convertToBase64(files.logo),
-        license_b64: await convertToBase64(files.license),
-        certificate_b64: await convertToBase64(files.certificate),
-        owner_id_front_b64: await convertToBase64(files.idFront),
-        owner_id_back_b64: await convertToBase64(files.idBack),
-      };
+      const uploadEntries = [
+        { key: 'logo', file: files.logo },
+        { key: 'license', file: files.license },
+        { key: 'certificate', file: files.certificate },
+        { key: 'owner_id_front', file: files.idFront },
+        { key: 'owner_id_back', file: files.idBack },
+      ];
+      const totalSizeBytes = uploadEntries.reduce((sum, entry) => sum + (entry.file?.size || 0), 0);
+      const maxFileSizeBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
+      const maxTotalSizeBytes = MAX_TOTAL_SIZE_MB * 1024 * 1024;
+
+      const oversized = uploadEntries.find((entry) => entry.file && entry.file.size > maxFileSizeBytes);
+      if (oversized) {
+        throw new Error(`${oversized.file.name} is larger than ${MAX_FILE_SIZE_MB}MB.`);
+      }
+      if (totalSizeBytes > maxTotalSizeBytes) {
+        throw new Error(`Total upload size exceeds ${MAX_TOTAL_SIZE_MB}MB.`);
+      }
+
+      const formData = new FormData();
+      uploadEntries.forEach(({ key, file }) => {
+        if (file) formData.append(key, file);
+      });
 
       const token = localStorage.getItem('token');
-      await axios.patch('https://pakacha.com/api/v1/business/kyc', payload, {
-        headers: { Authorization: `Bearer ${token}` }
+      await axios.patch('https://pakacha.com/api/v1/business/kyc', formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
       });
       
       Swal.fire({
@@ -81,7 +92,7 @@ const KYCPage = () => {
       Swal.fire({
         icon: 'error',
         title: 'Upload Failed',
-        text: err.response?.data?.detail || 'Failed to upload KYC documents. Please try again.',
+        text: err.response?.data?.detail || err.message || 'Failed to upload KYC documents. Please try again.',
         confirmButtonColor: '#ef4444'
       });
     } finally {
