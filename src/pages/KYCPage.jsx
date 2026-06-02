@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Upload, FileText, Landmark, CreditCard, Trash2 } from 'lucide-react';
 import axios from 'axios';
@@ -6,7 +6,7 @@ import './KYCPage.css';
 import Swal from 'sweetalert2';
 
 const KYCPage = () => {
-  const { refreshBusiness } = useAuth();
+  const { business, refreshBusiness } = useAuth();
   const [files, setFiles] = useState({
     logo: null,
     license: null,
@@ -24,6 +24,18 @@ const KYCPage = () => {
   const [loading, setLoading] = useState(false);
   const MAX_FILE_SIZE_MB = 5;
   const MAX_TOTAL_SIZE_MB = 20;
+
+  useEffect(() => {
+    if (!business) return;
+    setPreviews((prev) => ({
+      ...prev,
+      logo: business.logo_b64 || null,
+      license: business.license_b64 || null,
+      certificate: business.certificate_b64 || null,
+      idFront: business.owner_id_front_b64 || null,
+      idBack: business.owner_id_back_b64 || null,
+    }));
+  }, [business]);
 
   const handleFileChange = (e) => {
     const name = e.target.name;
@@ -80,14 +92,14 @@ const KYCPage = () => {
         }
       });
       
+      await refreshBusiness();
+
       Swal.fire({
         icon: 'success',
         title: 'Documents Submitted!',
         text: 'Your business verification is now being processed. We will notify you once approved.',
         confirmButtonColor: '#4f46e5'
       });
-
-      await refreshBusiness();
     } catch (err) {
       Swal.fire({
         icon: 'error',
