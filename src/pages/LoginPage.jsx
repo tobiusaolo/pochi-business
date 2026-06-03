@@ -55,8 +55,8 @@ const LoginPage = () => {
     <div className="auth-page">
       <div className="auth-visual">
         <div className="visual-content">
-          <h1>Grow Your Business with <span>POCHI</span></h1>
-          <p>Join thousands of merchants reaching millions of customers across the region.</p>
+          <h1>Grow Your Business <span>POCHI Commerce</span></h1>
+          <p>Join thousands of merchants reaching millions of customers East Africa.</p>
           <div className="visual-stats">
             <div className="stat-item">
               <h3>10k+</h3>
@@ -79,7 +79,7 @@ const LoginPage = () => {
                     <img src={logo} alt="Pochi" style={{ height: '40px', width: 'auto' }} />
                 </div>
             </div>
-            <div className="brand-logo">POCHI</div>
+            <div className="brand-logo" style={{fontSize: '1.5rem', fontWeight: '800', color: '#4f46e5', marginBottom: '32px', textAlign: 'center'}}>POCHI Commerce</div>
             <h2>Sign In</h2>
             <p>Welcome back! Please enter your details.</p>
           </div>

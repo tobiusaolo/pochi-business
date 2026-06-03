@@ -18,11 +18,21 @@ const RegistrationPage = () => {
     trading_currency: 'UGX',
     contact_phone: ''
   });
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!agreedToTerms) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Terms Required',
+        text: 'Please agree to our Terms & Privacy Policy to continue.',
+        confirmButtonColor: '#ff7e47'
+      });
+      return;
+    }
     setLoading(true);
     
     try {
@@ -52,8 +62,10 @@ const RegistrationPage = () => {
     <div className="auth-page">
       <div className="auth-visual">
         <div className="visual-content">
-          <h1>Start Your <span>Journey</span> Today</h1>
-          <p>Register your business and start selling to a global audience in minutes with POCHI.</p>
+          <h1>Start Your Journey<br />Today</h1>
+          <p>
+            Register your business and start selling to the fast growing East African market in minutes with Pochi Commerce.
+          </p>
           <div className="visual-stats">
             <div className="stat-item">
               <h3>Secure</h3>
@@ -76,7 +88,7 @@ const RegistrationPage = () => {
                     <img src={logo} alt="Pochi" style={{ height: '36px', width: 'auto' }} />
                 </div>
             </div>
-            <div className="brand-logo">POCHI</div>
+            <div className="brand-logo" style={{fontSize: '1.5rem', fontWeight: '800', color: '#4f46e5', marginBottom: '32px', textAlign: 'center'}}>Pochi Commerce</div>
             <h2>Register Business</h2>
             <p>Tell us about you and your business.</p>
           </div>
@@ -183,7 +195,21 @@ const RegistrationPage = () => {
               </div>
             </div>
 
-            <button type="submit" className="auth-submit-btn" disabled={loading}>
+            <label className="auth-terms-checkbox">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+              />
+              <span>
+                Agree to our{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer">Terms</a>
+                {' '}&amp;{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+              </span>
+            </label>
+
+            <button type="submit" className="auth-submit-btn" disabled={loading || !agreedToTerms}>
               {loading ? (
                 <><Loader2 className="animate-spin" size={20} /> Creating Account...</>
               ) : (

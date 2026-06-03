@@ -222,3 +222,32 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+.auth-terms-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #64748b;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.auth-terms-checkbox input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: #4f46e5;
+  cursor: pointer;
+}
+
+.auth-terms-checkbox a {
+  color: #4f46e5;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-terms-checkbox a:hover {
+  text-decoration: underline;
+}
