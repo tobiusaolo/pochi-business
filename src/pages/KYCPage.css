@@ -20,6 +20,34 @@
   font-size: 16px;
 }
 
+.kyc-global-format-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 18px;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-align: left;
+  max-width: 640px;
+}
+
+.kyc-global-format-banner strong {
+  color: var(--secondary);
+}
+
+.kyc-format-hint {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.35;
+  max-width: 220px;
+}
+
 .kyc-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -59,7 +87,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   background: #F8FAFC;
   transition: all 0.3s ease;
@@ -183,4 +211,158 @@
   background: #CBD5E1;
   box-shadow: none;
   cursor: not-allowed;
+}
+
+/* Policy section — matches KYC upload-card system */
+.kyc-section-block {
+  margin-bottom: 40px;
+}
+
+.kyc-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 24px 28px;
+  background: white;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.kyc-section-heading-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kyc-section-heading h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--secondary);
+  margin-bottom: 6px;
+}
+
+.kyc-section-heading p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.policy-choice-card {
+  cursor: pointer;
+  outline: none;
+}
+
+.policy-choice-card:not(.policy-choice-card--active) {
+  opacity: 0.72;
+}
+
+.policy-choice-card--active {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+  opacity: 1;
+}
+
+.policy-choice-card .card-header-icon {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.policy-choice-card .card-header-icon label {
+  flex: 1;
+}
+
+.policy-choice-indicator {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #CBD5E1;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.policy-choice-indicator.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: inset 0 0 0 3px white;
+}
+
+.policy-choice-desc {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.policy-template-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 2px dashed #CBD5E1;
+  border-radius: 12px;
+  background: #F8FAFC;
+  text-decoration: none;
+  color: var(--secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.policy-template-link:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+}
+
+.policy-choice-upload {
+  margin-top: auto;
+}
+
+.policy-upload-placeholder {
+  height: 120px;
+  border: 2px dashed #E2E8F0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #FAFBFC;
+  color: #94A3B8;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.kyc-submit-bar {
+  align-items: center;
+  gap: 20px;
+}
+
+.kyc-submit-bar .submit-info {
+  flex: 1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 640px) {
+  .kyc-submit-bar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .kyc-section-heading {
+    flex-direction: column;
+    padding: 20px;
+  }
 }

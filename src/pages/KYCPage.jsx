@@ -1,9 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Upload, FileText, Landmark, CreditCard, Trash2 } from 'lucide-react';
+import {
+  Upload, FileText, Landmark, CreditCard, Trash2,
+  ScrollText, Download, FileCheck, Info
+} from 'lucide-react';
 import axios from 'axios';
 import './KYCPage.css';
 import Swal from 'sweetalert2';
+import {
+  KYC_ACCEPT,
+  KYC_FORMAT_HINT,
+  validateKycFileClient,
+  getKycFileTypeLabel,
+} from '../utils/kycUpload';
+
+const TEMPLATE_URL = '/pochi-cancellation-refund-policy-template.html';
+const MAX_FILE_SIZE_MB = 5;
+const MAX_TOTAL_SIZE_MB = 25;
 
 const KYCPage = () => {
   const { business, refreshBusiness } = useAuth();
@@ -12,18 +25,19 @@ const KYCPage = () => {
     license: null,
     certificate: null,
     idFront: null,
-    idBack: null
+    idBack: null,
+    refundPolicy: null,
   });
   const [previews, setPreviews] = useState({
     logo: null,
     license: null,
     certificate: null,
     idFront: null,
-    idBack: null
+    idBack: null,
+    refundPolicy: null,
   });
+  const [refundPolicyType, setRefundPolicyType] = useState('');
   const [loading, setLoading] = useState(false);
-  const MAX_FILE_SIZE_MB = 5;
-  const MAX_TOTAL_SIZE_MB = 20;
 
   useEffect(() => {
     if (!business) return;
@@ -34,21 +48,36 @@ const KYCPage = () => {
       certificate: business.certificate_b64 || null,
       idFront: business.owner_id_front_b64 || null,
       idBack: business.owner_id_back_b64 || null,
+      refundPolicy: business.refund_policy_b64 || null,
     }));
+    if (business.refund_policy_type) {
+      setRefundPolicyType(business.refund_policy_type);
+    }
   }, [business]);
 
   const handleFileChange = (e) => {
     const name = e.target.name;
     const file = e.target.files[0];
-    if (file) {
-      setFiles({ ...files, [name]: file });
-      // Generate preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviews(prev => ({ ...prev, [name]: reader.result }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    const error = validateKycFileClient(file, MAX_FILE_SIZE_MB);
+    if (error) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Invalid file',
+        text: error,
+        confirmButtonColor: '#ff7f50',
+      });
+      e.target.value = '';
+      return;
     }
+
+    setFiles({ ...files, [name]: file });
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviews((prev) => ({ ...prev, [name]: reader.result }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const removeFile = (name) => {
@@ -56,8 +85,137 @@ const KYCPage = () => {
     setPreviews({ ...previews, [name]: null });
   };
 
+  const selectPolicyType = (type) => {
+    if (refundPolicyType === type) return;
+    if (refundPolicyType) {
+      setFiles((prev) => ({ ...prev, refundPolicy: null }));
+      setPreviews((prev) => ({ ...prev, refundPolicy: null }));
+    }
+    setRefundPolicyType(type);
+  };
+
+  const renderFilePreview = (name) => {
+    const docLabel = getKycFileTypeLabel(previews[name]);
+    return (
+      <div className="preview-container">
+        {previews[name].startsWith('data:image') ? (
+          <img src={previews[name]} alt="Preview" className="file-preview-img" />
+        ) : (
+          <div className="pdf-preview-stub">
+            <FileText size={48} color="#6495ed" />
+            <span>{docLabel} Document</span>
+          </div>
+        )}
+        <div className="preview-overlay">
+          <button type="button" className="remove-btn" onClick={() => removeFile(name)}>
+            <Trash2 size={18} /> Remove
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderUploadZone = (name, hint = 'Click to upload') => (
+    !previews[name] ? (
+      <div className="file-input-wrapper">
+        <Upload size={32} color="#94A3B8" />
+        <span>{hint}</span>
+        <span className="kyc-format-hint">{KYC_FORMAT_HINT}</span>
+        <input
+          type="file"
+          name={name}
+          onChange={handleFileChange}
+          accept={KYC_ACCEPT}
+        />
+      </div>
+    ) : (
+      renderFilePreview(name)
+    )
+  );
+
+  const renderUploadCard = (name, label, Icon) => (
+    <div className="upload-card">
+      <div className="card-header-icon">
+        <Icon size={20} color="var(--primary)" />
+        <label>{label}</label>
+      </div>
+      {renderUploadZone(name)}
+    </div>
+  );
+
+  const renderPolicyChoiceCard = (type, label, description, Icon) => {
+    const isActive = refundPolicyType === type;
+    const showUpload = isActive;
+
+    return (
+      <div
+        className={`upload-card policy-choice-card ${isActive ? 'policy-choice-card--active' : ''}`}
+        onClick={() => selectPolicyType(type)}
+        onKeyDown={(e) => e.key === 'Enter' && selectPolicyType(type)}
+        role="button"
+        tabIndex={0}
+      >
+        <div className="card-header-icon">
+          <Icon size={20} color="var(--primary)" />
+          <label>{label}</label>
+          <span className={`policy-choice-indicator ${isActive ? 'active' : ''}`} aria-hidden />
+        </div>
+
+        <p className="policy-choice-desc">{description}</p>
+
+        {type === 'signed_template' && isActive && (
+          <a
+            href={TEMPLATE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="policy-template-link"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Download size={18} color="var(--primary)" />
+            <span>Download Pochi template</span>
+          </a>
+        )}
+
+        <div className="policy-choice-upload" onClick={(e) => e.stopPropagation()}>
+          {showUpload ? (
+            renderUploadZone(
+              'refundPolicy',
+              type === 'own' ? 'Click to upload your policy' : 'Upload signed template'
+            )
+          ) : (
+            <div className="policy-upload-placeholder">
+              <FileCheck size={28} color="#CBD5E1" />
+              <span>Select this option to upload</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!refundPolicyType) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Policy option required',
+        text: 'Please choose whether you are uploading your own policy or a signed Pochi template.',
+        confirmButtonColor: '#ff7f50',
+      });
+      return;
+    }
+
+    if (!files.refundPolicy && !previews.refundPolicy) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Policy document required',
+        text: `Please upload your Cancellation and Refund policy (${KYC_FORMAT_HINT}).`,
+        confirmButtonColor: '#ff7f50',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const uploadEntries = [
@@ -66,6 +224,7 @@ const KYCPage = () => {
         { key: 'certificate', file: files.certificate },
         { key: 'owner_id_front', file: files.idFront },
         { key: 'owner_id_back', file: files.idBack },
+        { key: 'refund_policy', file: files.refundPolicy },
       ];
       const totalSizeBytes = uploadEntries.reduce((sum, entry) => sum + (entry.file?.size || 0), 0);
       const maxFileSizeBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -83,74 +242,49 @@ const KYCPage = () => {
       uploadEntries.forEach(({ key, file }) => {
         if (file) formData.append(key, file);
       });
+      formData.append('refund_policy_type', refundPolicyType);
 
       const token = localStorage.getItem('token');
       await axios.patch('https://pakacha.com/api/v1/business/kyc', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
+          'Content-Type': 'multipart/form-data',
+        },
       });
-      
+
       await refreshBusiness();
 
       Swal.fire({
         icon: 'success',
         title: 'Documents Submitted!',
         text: 'Your business verification is now being processed. We will notify you once approved.',
-        confirmButtonColor: '#4f46e5'
+        confirmButtonColor: '#ff7f50',
       });
     } catch (err) {
       Swal.fire({
         icon: 'error',
         title: 'Upload Failed',
         text: err.response?.data?.detail || err.message || 'Failed to upload KYC documents. Please try again.',
-        confirmButtonColor: '#ef4444'
+        confirmButtonColor: '#ef4444',
       });
     } finally {
       setLoading(false);
     }
   };
-  const renderUploadCard = (name, label, Icon) => (
-    <div className="upload-card">
-      <div className="card-header-icon">
-        <Icon size={20} color="var(--primary)" />
-        <label>{label}</label>
-      </div>
-      
-      {!previews[name] ? (
-        <div className="file-input-wrapper">
-          <Upload size={32} color="#94A3B8" />
-          <span>Click to upload</span>
-          <input type="file" name={name} onChange={handleFileChange} accept="image/*,application/pdf" />
-        </div>
-      ) : (
-        <div className="preview-container">
-          {previews[name].startsWith('data:image') ? (
-            <img src={previews[name]} alt="Preview" className="file-preview-img" />
-          ) : (
-            <div className="pdf-preview-stub">
-              <FileText size={48} color="#6495ed" />
-              <span>PDF Document</span>
-            </div>
-          )}
-          <div className="preview-overlay">
-            <button type="button" className="remove-btn" onClick={() => removeFile(name)}>
-              <Trash2 size={18} /> Remove
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div className="kyc-container animate-fade">
       <div className="kyc-header">
         <h1>Business Verification</h1>
         <p>Complete your KYC to activate your products on the marketplace.</p>
+        <div className="kyc-global-format-banner">
+          <Info size={16} />
+          <span>
+            <strong>Accepted documents:</strong> {KYC_FORMAT_HINT}. Images should be clear and readable.
+          </span>
+        </div>
       </div>
-      
+
       <form onSubmit={handleSubmit}>
         <div className="kyc-card-grid">
           {renderUploadCard('logo', 'Business Logo', Upload)}
@@ -160,8 +294,40 @@ const KYCPage = () => {
           {renderUploadCard('idBack', 'Owner ID (Back)', CreditCard)}
         </div>
 
+        <div className="kyc-section-block">
+          <div className="kyc-section-heading">
+            <div className="kyc-section-heading-icon">
+              <ScrollText size={22} color="var(--primary)" />
+            </div>
+            <div>
+              <h2>Cancellation &amp; Refund Policy</h2>
+              <p>
+                Upload your cancellation and refund policy, or download our template, sign it, and upload the signed copy.
+                Same file types apply: {KYC_FORMAT_HINT}.
+              </p>
+            </div>
+          </div>
+
+          <div className="kyc-card-grid">
+            {renderPolicyChoiceCard(
+              'own',
+              'My Own Policy',
+              'Upload your existing cancellation and refund terms as JPEG, PNG, PDF, or DOCX.',
+              FileText
+            )}
+            {renderPolicyChoiceCard(
+              'signed_template',
+              'Pochi Signed Template',
+              'Download the Pochi template, sign it, then upload the signed file (PDF, DOCX, or a clear photo/scan).',
+              ScrollText
+            )}
+          </div>
+        </div>
+
         <div className="kyc-submit-bar glass">
-          <p className="submit-info">Ensure all documents are clearly visible and valid.</p>
+          <p className="submit-info">
+            Ensure all documents are clearly visible and valid. Use {KYC_FORMAT_HINT} for every upload.
+          </p>
           <button type="submit" className="btn-primary-large" disabled={loading}>
             {loading ? 'Processing...' : 'Submit Verification'}
           </button>

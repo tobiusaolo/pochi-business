@@ -59,7 +59,7 @@ const RegistrationPage = () => {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page auth-page--register">
       <div className="auth-visual">
         <div className="visual-content">
           <h1>Start Your Journey<br />Today</h1>
@@ -83,12 +83,12 @@ const RegistrationPage = () => {
       <div className="auth-form-container">
         <div className="auth-card animate-slide-up" style={{maxWidth: '550px'}}>
           <div className="auth-header">
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-                <div style={{ background: '#0b182a', padding: '14px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(0,0,0,0.1)' }}>
-                    <img src={logo} alt="Pochi" style={{ height: '36px', width: 'auto' }} />
-                </div>
+            <div className="auth-register-logo-block">
+              <div className="auth-register-logo-wrap">
+                <img src={logo} alt="Pochi" />
+              </div>
             </div>
-            <div className="brand-logo" style={{fontSize: '1.5rem', fontWeight: '800', color: '#4f46e5', marginBottom: '32px', textAlign: 'center'}}>Pochi Commerce</div>
+            <div className="brand-logo auth-register-brand">Pochi Commerce</div>
             <h2>Register Business</h2>
             <p>Tell us about you and your business.</p>
           </div>
@@ -203,9 +203,9 @@ const RegistrationPage = () => {
               />
               <span>
                 Agree to our{' '}
-                <a href="/terms" target="_blank" rel="noopener noreferrer">Terms</a>
+                <Link to="/terms" onClick={(e) => e.stopPropagation()}>Terms</Link>
                 {' '}&amp;{' '}
-                <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                <Link to="/privacy" onClick={(e) => e.stopPropagation()}>Privacy Policy</Link>
               </span>
             </label>
 

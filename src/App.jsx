@@ -9,6 +9,7 @@ import Settings from './pages/Settings';
 import KYCPage from './pages/KYCPage';
 import RegistrationPage from './pages/RegistrationPage';
 import LoginPage from './pages/LoginPage';
+import LegalDocumentPage from './pages/LegalDocumentPage';
 import CategoriesPage from './pages/CategoriesPage';
 import NotificationsPage from './pages/NotificationsPage';
 import Payments from './pages/Payments';
@@ -104,6 +105,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegistrationPage />} />
+            <Route path="/terms" element={<LegalDocumentPage />} />
+            <Route path="/privacy" element={<LegalDocumentPage />} />
             <Route path="/dashboard" element={<Dashboard />}>
               <Route index element={<Analytics />} />
               <Route path="products" element={<ProductList />} />

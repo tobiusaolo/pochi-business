@@ -251,3 +251,57 @@
 .auth-terms-checkbox a:hover {
   text-decoration: underline;
 }
+
+/* Registration: align left hero with "Pochi Commerce" on the right */
+.auth-page--register .auth-visual,
+.auth-page--register .auth-form-container {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
+.auth-page--register .auth-form-container {
+  justify-content: center;
+}
+
+.auth-register-logo-block {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.auth-register-logo-wrap {
+  background: #0b182a;
+  padding: 14px 20px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.auth-register-logo-wrap img {
+  height: 36px;
+  width: auto;
+}
+
+.auth-register-brand {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #4f46e5;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.auth-page--register {
+  --register-brand-offset: 88px; /* logo block + spacing above brand name */
+}
+
+.auth-page--register .visual-content {
+  padding-top: var(--register-brand-offset);
+}
+
+.auth-page--register .visual-content h1 {
+  margin-top: 0;
+}
