@@ -20,7 +20,7 @@ const PAGE_CONFIG = {
     eyebrow: 'Privacy Policy',
     headline: 'Seller Agreement',
     description:
-      'This policy outlines how seller data and customer information are handled on the Pochi platform.',
+      'This policy outlines the agreement governing the relationship between Tourify Technologies Ltd and the Seller.',
     icon: Shield,
   },
 };
