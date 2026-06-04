@@ -55,7 +55,7 @@ const LoginPage = () => {
     <div className="auth-page">
       <div className="auth-visual">
         <div className="visual-content">
-          <h1>Grow Your Business With <span>POCHI Commerce</span></h1>
+          <h1>Grow Your Business With <span>Pochi Commerce</span></h1>
           <p>Join thousands of merchants reaching millions of customers across East Africa.</p>
           <div className="visual-stats">
             <div className="stat-item">
