@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import { API_BASE } from '../config/api';
+import { useOrders } from '../hooks/queries';
 import { 
   ShoppingCart, Clock, CheckCircle, Truck, AlertCircle, 
   ChevronRight, X, User, Calendar, DollarSign, Package, Eye,
@@ -9,14 +10,7 @@ import {
 import './Orders.css';
 
 const Orders = () => {
-  const [orders, setOrders] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cached_orders');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
+  const { data: orders = [] } = useOrders();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -25,42 +19,6 @@ const Orders = () => {
   const [endDate, setEndDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  useEffect(() => {
-    const handleNewOrder = () => {
-      console.log("Real-time business order event received. Reloading...");
-      fetchOrders();
-    };
-    const handleStatusChanged = () => {
-      console.log("Real-time business order status changed event received. Reloading...");
-      fetchOrders();
-    };
-
-    window.addEventListener('poch-biz-order-new', handleNewOrder);
-    window.addEventListener('poch-biz-order-status-changed', handleStatusChanged);
-
-    return () => {
-      window.removeEventListener('poch-biz-order-new', handleNewOrder);
-      window.removeEventListener('poch-biz-order-status-changed', handleStatusChanged);
-    };
-  }, []);
-
-  const fetchOrders = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('https://pakacha.com/api/v1/orders/business', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOrders(res.data);
-      localStorage.setItem('cached_orders', JSON.stringify(res.data));
-    } catch (err) {
-      console.error('Failed to fetch orders');
-    }
-  };
 
   const openOrderDetails = (order) => {
     setSelectedOrder(order);

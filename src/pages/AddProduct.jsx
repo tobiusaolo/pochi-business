@@ -1,19 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../config/api';
+import { MERCHANT_PRODUCT_CURRENCY, normalizeCurrency, formatMoney } from '../utils/currency';
 import { Package, Tag, DollarSign, Info, Plus } from 'lucide-react';
 import './AddProduct.css';
 
 const AddProduct = () => {
+  const [categories, setCategories] = useState([]);
   const [formData, setFormData] = useState({
     sku: '',
     name: '',
     description: '',
     basePrice: '',
-    categoryId: ''
+    categoryId: '',
+    stockQuantity: '',
+    discountPct: '',
+    promoCode: '',
+    minimumOrderQty: '',
+    vatPct: '18',
+    freeDelivery: 'no',
+    bulkTiers: [],
+  });
+  const [pricePreview, setPricePreview] = useState({
+    base_price: 0,
+    platform_fee_pct: null,
+    vat_pct: null,
+    platform_fee_amount: 0,
+    vat_amount: 0,
+    listing_price: 0,
+    previewUnavailable: false,
   });
 
-  const PLATFORM_FEE_PERCENT = 0.05;
-  const listingPrice = formData.basePrice ? (parseFloat(formData.basePrice) * (1 + PLATFORM_FEE_PERCENT)).toFixed(2) : '0.00';
+  const selectedCategory = categories.find((c) => String(c.id) === String(formData.categoryId));
+  const categoryChannel = selectedCategory?.channel || 'BOTH';
+  const showRetailFields = categoryChannel === 'RETAIL' || categoryChannel === 'BOTH';
+  const showWholesaleFields = categoryChannel === 'WHOLESALE' || categoryChannel === 'BOTH';
+
+  useEffect(() => {
+    const price = parseFloat(formData.basePrice);
+    if (!price || price <= 0) return;
+    const vat = parseFloat(formData.vatPct);
+    const token = localStorage.getItem('token');
+    axios.post(
+      `${API_BASE}/pricing/preview`,
+      {
+        base_price: price,
+        vat_pct: Number.isFinite(vat) ? vat : undefined,
+        currency: MERCHANT_PRODUCT_CURRENCY,
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then((res) => setPricePreview({ ...res.data, previewUnavailable: false }))
+      .catch(() => {
+        setPricePreview({
+          base_price: price,
+          platform_fee_pct: null,
+          vat_pct: null,
+          platform_fee_amount: 0,
+          vat_amount: 0,
+          listing_price: 0,
+          previewUnavailable: true,
+        });
+      });
+  }, [formData.basePrice, formData.vatPct]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    axios.get(`${API_BASE}/categories/`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setCategories((res.data || []).filter((c) => c.business_id)))
+      .catch(() => {});
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -24,16 +80,23 @@ const AddProduct = () => {
     try {
       const token = localStorage.getItem('token');
       const payload = {
-        sku: formData.sku,
+        sku: formData.sku || undefined,
         name: formData.name,
         description: formData.description,
         base_price: parseFloat(formData.basePrice),
-        listing_price: parseFloat(listingPrice),
-        category_id: formData.categoryId || null
+        currency: MERCHANT_PRODUCT_CURRENCY,
+        category_id: formData.categoryId || null,
+        stock_quantity: parseInt(formData.stockQuantity || '0', 10),
+        discount_pct: formData.discountPct ? parseFloat(formData.discountPct) : null,
+        promo_code: formData.promoCode || null,
+        minimum_order_qty: formData.minimumOrderQty ? parseInt(formData.minimumOrderQty, 10) : null,
+        vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
+        free_delivery: formData.freeDelivery === 'yes',
+        bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
       };
 
-      await axios.post('https://pakacha.com/api/v1/products/', payload, {
-        headers: { Authorization: `Bearer ${token}` }
+      await axios.post(`${API_BASE}/products/`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       alert('Product published successfully!');
       window.location.href = '/dashboard/products';
@@ -55,85 +118,182 @@ const AddProduct = () => {
           Basic Information
         </div>
 
-        <form className="form-grid">
+        <form className="form-grid" onSubmit={handleSubmit}>
           <div className="form-group full-width">
             <label>Product Name</label>
-            <input 
-              name="name" 
-              placeholder="e.g. Premium Arabica Coffee Beans"
-              value={formData.name} 
-              onChange={handleChange} 
-            />
+            <input name="name" placeholder="e.g. Premium Arabica Coffee Beans" value={formData.name} onChange={handleChange} required />
           </div>
 
           <div className="form-group">
-            <label>SKU (Stock Keeping Unit)</label>
-            <input 
-              name="sku" 
-              placeholder="COF-ARB-001"
-              value={formData.sku} 
-              onChange={handleChange} 
-            />
+            <label>SKU (optional)</label>
+            <input name="sku" placeholder="COF-ARB-001" value={formData.sku} onChange={handleChange} />
           </div>
 
           <div className="form-group">
             <label>Category</label>
             <select name="categoryId" value={formData.categoryId} onChange={handleChange}>
               <option value="">Select Category</option>
-              <option value="1">Coffee & Tea</option>
-              <option value="2">Handicrafts</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name} ({cat.channel})</option>
+              ))}
             </select>
+          </div>
+
+          <div className="form-group">
+            <label>Delivery</label>
+            <select name="freeDelivery" value={formData.freeDelivery} onChange={handleChange} required>
+              <option value="no">Delivery not included (buyer pays shipping)</option>
+              <option value="yes">Free delivery</option>
+            </select>
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Shown to buyers on the Pochi app product card.
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label>Stock Quantity</label>
+            <input type="number" name="stockQuantity" min="0" value={formData.stockQuantity} onChange={handleChange} placeholder="e.g. 100" required />
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Required for Pochi app availability. 0 = Out of Stock.
+            </p>
           </div>
 
           <div className="form-group full-width">
             <label>Description</label>
-            <textarea 
-              name="description" 
-              rows="4"
-              placeholder="Tell your customers about this product..."
-              value={formData.description} 
-              onChange={handleChange} 
-            ></textarea>
+            <textarea name="description" rows="4" placeholder="Tell your customers about this product..." value={formData.description} onChange={handleChange} />
+          </div>
+
+          {showRetailFields && (
+            <>
+              <div className="form-group">
+                <label>Retail Discount (%)</label>
+                <input type="number" name="discountPct" min="0" max="100" value={formData.discountPct} onChange={handleChange} />
+              </div>
+              <div className="form-group">
+                <label>Promo Code</label>
+                <input name="promoCode" value={formData.promoCode} onChange={handleChange} placeholder="Optional" />
+              </div>
+            </>
+          )}
+
+          {showWholesaleFields && (
+            <>
+              <div className="form-group">
+                <label>Minimum Order Qty (MOQ)</label>
+                <input type="number" name="minimumOrderQty" min="1" value={formData.minimumOrderQty} onChange={handleChange} />
+              </div>
+              <div className="form-group">
+                <label>Wholesale Promo Code</label>
+                <input name="promoCode" value={formData.promoCode} onChange={handleChange} placeholder="BULK-SUMMER" />
+              </div>
+              <div className="form-group full-width">
+                <label>Bulk Pricing Tiers</label>
+                <p className="field-help" style={{ marginBottom: 8 }}>e.g. 50+ units → 10% off, 100+ units → 15% off</p>
+                {formData.bulkTiers.map((tier, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="number"
+                      placeholder="Min qty"
+                      value={tier.min_quantity}
+                      onChange={(e) => {
+                        const tiers = [...formData.bulkTiers];
+                        tiers[idx] = { ...tiers[idx], min_quantity: parseInt(e.target.value, 10) };
+                        setFormData({ ...formData, bulkTiers: tiers });
+                      }}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Discount %"
+                      value={tier.discount_pct}
+                      onChange={(e) => {
+                        const tiers = [...formData.bulkTiers];
+                        tiers[idx] = { ...tiers[idx], discount_pct: parseFloat(e.target.value) };
+                        setFormData({ ...formData, bulkTiers: tiers });
+                      }}
+                    />
+                    <button type="button" onClick={() => setFormData({ ...formData, bulkTiers: formData.bulkTiers.filter((_, i) => i !== idx) })}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn-secondary-expert"
+                  onClick={() => setFormData({ ...formData, bulkTiers: [...formData.bulkTiers, { min_quantity: '', discount_pct: '' }] })}
+                >
+                  Add Tier
+                </button>
+              </div>
+            </>
+          )}
+
+          <div className="form-group">
+            <label>Base Price (USD — your revenue)</label>
+            <div className="price-input-wrapper">
+              <input type="number" name="basePrice" placeholder="0.00" value={formData.basePrice} onChange={handleChange} required />
+            </div>
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              All product prices are stored in USD. Buyers see a local price converted to their region.
+            </p>
           </div>
 
           <div className="form-group">
-            <label>Base Price (Your Revenue)</label>
-            <div className="price-input-wrapper">
-              <input 
-                type="number" 
-                name="basePrice" 
-                placeholder="0.00"
-                value={formData.basePrice} 
-                onChange={handleChange} 
-              />
-            </div>
+            <label>Tax / VAT (%)</label>
+            <input
+              type="number"
+              name="vatPct"
+              min="0"
+              max="100"
+              step="0.1"
+              value={formData.vatPct}
+              onChange={handleChange}
+              placeholder="e.g. 18"
+              required
+            />
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Rate you remit to the tax authority. Added to the buyer price on top of platform fee.
+            </p>
           </div>
 
           <div className="form-group">
             <label>Price Calculation</label>
             <div className="price-calculation-card">
-              <div className="calc-row">
-                <span>Base Price</span>
-                <span>{formData.basePrice || '0.00'} UGX</span>
-              </div>
-              <div className="calc-row">
-                <span>Platform Fee (5%)</span>
-                <span>{(formData.basePrice * PLATFORM_FEE_PERCENT).toFixed(2)} UGX</span>
-              </div>
-              <div className="calc-row total">
-                <span>Listing Price</span>
-                <span>{listingPrice} UGX</span>
-              </div>
+              {pricePreview.previewUnavailable ? (
+                <p style={{ fontSize: 13, color: 'var(--danger, #c0392b)' }}>
+                  Price preview unavailable. Check your connection or try again.
+                </p>
+              ) : (
+                <>
+                  <div className="calc-row">
+                    <span>Base Price (your revenue)</span>
+                    <span>{formatMoney(formData.basePrice || 0, MERCHANT_PRODUCT_CURRENCY)}</span>
+                  </div>
+                  <div className="calc-row">
+                    <span>Platform Fee ({pricePreview.platform_fee_pct ?? '—'}%)</span>
+                    <span>{formatMoney(pricePreview.platform_fee_amount || 0, MERCHANT_PRODUCT_CURRENCY)}</span>
+                  </div>
+                  <div className="calc-row">
+                    <span>Tax / VAT ({pricePreview.vat_pct ?? '—'}%)</span>
+                    <span>{formatMoney(pricePreview.vat_amount || 0, MERCHANT_PRODUCT_CURRENCY)}</span>
+                  </div>
+                  <div className="calc-row total">
+                    <span>Buyer Price (USD)</span>
+                    <span>{formatMoney(pricePreview.listing_price || 0, MERCHANT_PRODUCT_CURRENCY)}</span>
+                  </div>
+                </>
+              )}
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                Platform fee is set by Pochi. Tax rate is set by you per product.
+              </p>
             </div>
           </div>
-        </form>
 
-        <div className="form-actions">
-          <button type="button" className="btn-secondary">Save Draft</button>
-          <button type="button" className="btn-primary-large" onClick={handleSubmit}>
-            <Plus size={18} /> Publish Product
-          </button>
-        </div>
+          <div className="form-group full-width">
+            <button type="submit" className="btn-primary">
+              <Plus size={18} /> Publish Product
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

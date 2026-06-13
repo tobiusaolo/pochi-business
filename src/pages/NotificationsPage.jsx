@@ -1,64 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   Bell, Check, Eye, EyeOff, Loader2, ShoppingBag, CheckSquare, ShieldCheck, Edit3, Info, Trash2, X, ArrowRight
 } from 'lucide-react';
-import axios from 'axios';
-import Swal from 'sweetalert2';
+import { api } from '../lib/api';
+import { useNotifications } from '../hooks/queries';
+import { queryKeys } from '../lib/queryKeys';
+import { alertSuccess } from '../utils/swal';
 import './NotificationsPage.css';
 
 const NotificationsPage = () => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cached_notifications');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
+  const queryClient = useQueryClient();
+  const { data: notifications = [], isFetching } = useNotifications();
   
-  const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('all'); // all, unread, read
+  const [filter, setFilter] = useState('all');
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const fetchNotifications = async (showLoading = false) => {
-    if (showLoading) setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('https://pakacha.com/api/v1/notifications', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setNotifications(res.data);
-      localStorage.setItem('cached_notifications', JSON.stringify(res.data));
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-    } finally {
-      if (showLoading) setLoading(false);
-    }
+  const updateNotifications = (updater) => {
+    queryClient.setQueryData(queryKeys.notifications, (current = []) => updater(current));
   };
-
-  useEffect(() => {
-    fetchNotifications(notifications.length === 0);
-  }, []);
 
   const handleMarkAsRead = async (id) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`https://pakacha.com/api/v1/notifications/${id}/read`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      const updated = notifications.map(notif => 
-        notif.id === id ? { ...notif, is_read: true } : notif
+      await api.patch(`/notifications/${id}/read`);
+      updateNotifications((items) =>
+        items.map((notif) => (notif.id === id ? { ...notif, is_read: true } : notif))
       );
-      setNotifications(updated);
-      localStorage.setItem('cached_notifications', JSON.stringify(updated));
-      
-      // Update drawer if opened
-      if (selectedNotification && selectedNotification.id === id) {
-        setSelectedNotification(prev => ({ ...prev, is_read: true }));
+      if (selectedNotification?.id === id) {
+        setSelectedNotification((prev) => ({ ...prev, is_read: true }));
       }
     } catch (err) {
       console.error('Failed to mark read:', err);
@@ -67,26 +39,9 @@ const NotificationsPage = () => {
 
   const handleMarkAllAsRead = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post('https://pakacha.com/api/v1/notifications/read-all', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const updated = notifications.map(notif => ({ ...notif, is_read: true }));
-      setNotifications(updated);
-      localStorage.setItem('cached_notifications', JSON.stringify(updated));
-
-      Swal.fire({
-        icon: 'success',
-        title: 'All Cleared',
-        text: 'All your notifications have been marked as read.',
-        timer: 2000,
-        showConfirmButton: false,
-        timerProgressBar: true,
-        background: '#0b182a',
-        color: '#ffffff',
-        iconColor: '#10b981'
-      });
+      await api.post('/notifications/read-all');
+      updateNotifications((items) => items.map((notif) => ({ ...notif, is_read: true })));
+      alertSuccess('All Cleared', 'All your notifications have been marked as read.');
     } catch (err) {
       console.error('Failed to mark all read:', err);
     }
@@ -170,7 +125,7 @@ const NotificationsPage = () => {
         </div>
         
         <div className="revalidate-spinner-wrapper">
-          {loading && <Loader2 size={16} className="animate-spin text-muted" />}
+          {isFetching && <Loader2 size={16} className="animate-spin text-muted" />}
         </div>
       </div>
 

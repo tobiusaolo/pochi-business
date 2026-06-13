@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import Swal from 'sweetalert2';
+import { API_BASE } from '../config/api';
+import { alertSuccess, alertError, alertWarning } from '../utils/swal';
 import { Mail, Lock, User, Building, MapPin, Globe, Phone, ArrowRight, Loader2 } from 'lucide-react';
 import './LoginPage.css';
 import logo from '../assets/logo.png';
@@ -25,34 +26,19 @@ const RegistrationPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!agreedToTerms) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Terms Required',
-        text: 'Please agree to our Terms & Privacy Policy to continue.',
-        confirmButtonColor: '#ff7e47'
-      });
+      alertWarning('Terms Required', 'Please agree to our Terms & Privacy Policy to continue.');
       return;
     }
     setLoading(true);
     
     try {
-      await axios.post('https://pakacha.com/api/v1/auth/business/register', formData);
+      await axios.post(`${API_BASE}/auth/business/register`, formData);
       
-      Swal.fire({
-        icon: 'success',
-        title: 'Registration Successful!',
-        text: 'Your business account has been created. Please sign in to continue.',
-        confirmButtonColor: '#ff7e47'
-      });
+      alertSuccess('Registration Successful', 'Your business account has been created. Please sign in to continue.', { showConfirmButton: true, timer: undefined });
 
       navigate('/login');
     } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Registration Failed',
-        text: err.response?.data?.detail || 'Something went wrong. Please try again.',
-        confirmButtonColor: '#ff7e47'
-      });
+      alertError('Registration Failed', err.response?.data?.detail || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }

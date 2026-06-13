@@ -1,5 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../lib/api';
+import { queryKeys } from '../lib/queryKeys';
+import {
+  useCategories,
+  useProducts,
+  useGeoCurrency,
+  useFxRates,
+} from '../hooks/queries';
 import { 
   Package, Plus, X, ArrowRight, ArrowLeft, Check, Tag, 
   Search, Filter, ChevronRight, MoreVertical, Eye, 
@@ -8,25 +16,75 @@ import {
 } from 'lucide-react';
 import './ProductList.css';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import { alertSuccess, alertError, confirmDelete } from '../utils/swal';
+import {
+  MERCHANT_PRODUCT_CURRENCY,
+  DEFAULT_PREVIEW_CURRENCY,
+  normalizeCurrency,
+  formatMoney,
+  getPublicPriceDisplay,
+  enrichProductForViewer,
+  formatPublicLocalPrice,
+  formatPublicUsdPrice,
+  getProductDeliveryLabel,
+  isFreeDelivery,
+  getProductPromotionDisplay,
+} from '../utils/currency';
+
+const getStockLabel = (product) => {
+  const qty = product?.stock_quantity ?? 0;
+  if (qty <= 0) return { text: 'Out of Stock', className: 'hidden' };
+  return { text: `${qty} in stock`, className: 'active' };
+};
+
+const PublicCardPrice = ({ display, size = 'local', style, className }) => {
+  const isLocal = size === 'local';
+  const resolvedClass = className || (isLocal ? 'card-price-local' : 'card-price-usd');
+  const format = isLocal
+    ? (amount) => formatPublicLocalPrice(amount, display.localCurrency)
+    : formatPublicUsdPrice;
+  const original = isLocal ? display.localAmount : display.usdAmount;
+  const current = isLocal
+    ? (display.localDiscountedAmount ?? display.localAmount)
+    : (display.usdDiscountedAmount ?? display.usdAmount);
+
+  if (display.hasDiscount) {
+    return (
+      <p className={resolvedClass} style={style}>
+        <span className="price-original">{format(original)}</span>
+        <span className="price-discounted">{format(current)}</span>
+        <span className="price-tax"> + tax</span>
+      </p>
+    );
+  }
+
+  return (
+    <p className={resolvedClass} style={style}>
+      {format(current)}<span className="price-tax"> + tax</span>
+    </p>
+  );
+};
 
 const ProductList = () => {
-  const [products, setProducts] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cached_products');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
+  const queryClient = useQueryClient();
+  const { data: geoData, isSuccess: geoReady } = useGeoCurrency();
+  const { data: fxRates = {} } = useFxRates();
+  const { data: categories = [] } = useCategories();
+
+  const viewerCurrency = useMemo(() => {
+    if (geoReady && geoData?.currency && !geoData?.error) {
+      return normalizeCurrency(geoData.currency);
     }
-  });
-  const [categories, setCategories] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cached_categories');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
+    return DEFAULT_PREVIEW_CURRENCY;
+  }, [geoData, geoReady]);
+
+  const { data: rawProducts = [] } = useProducts(viewerCurrency, geoReady);
+
+  const refreshProducts = () => {
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.stats });
+  };
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState('ADD'); // ADD, EDIT, VIEW
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -43,48 +101,86 @@ const ProductList = () => {
     name: '',
     description: '',
     basePrice: '',
-    categoryId: ''
+    categoryId: '',
+    stockQuantity: '',
+    discountPct: '',
+    promoCode: '',
+    minimumOrderQty: '',
+    vatPct: '18',
+    freeDelivery: 'no',
+    bulkTiers: [],
   });
 
-  const [productImages, setProductImages] = useState([]); 
+  const [pricePreview, setPricePreview] = useState({
+    base_price: 0,
+    platform_fee_pct: null,
+    vat_pct: null,
+    platform_fee_amount: 0,
+    vat_amount: 0,
+    listing_price: 0,
+    previewUnavailable: false,
+  });
+
+  const products = useMemo(
+    () => rawProducts.map((p) => enrichProductForViewer(p, viewerCurrency, fxRates)),
+    [rawProducts, viewerCurrency, fxRates]
+  );
+
+  const [productImages, setProductImages] = useState([]);
   const navigate = useNavigate();
 
-  const PLATFORM_FEE_PERCENT = 0.05;
-  const listingPrice = formData.basePrice ? (parseFloat(formData.basePrice) * (1 + PLATFORM_FEE_PERCENT)).toFixed(0) : '0';
+  const selectedCategory = categories.find((c) => String(c.id) === String(formData.categoryId));
+  const categoryChannel = selectedCategory?.channel || 'BOTH';
+  const showRetailFields = categoryChannel === 'RETAIL' || categoryChannel === 'BOTH';
+  const showWholesaleFields = categoryChannel === 'WHOLESALE' || categoryChannel === 'BOTH';
+
+  const fetchPricePreview = async (basePrice, vatPct, viewerCcy) => {
+    const price = parseFloat(basePrice);
+    const vat = parseFloat(vatPct);
+    if (!price || price <= 0) {
+      setPricePreview({
+        base_price: 0,
+        platform_fee_pct: null,
+        vat_pct: vat || null,
+        platform_fee_amount: 0,
+        vat_amount: 0,
+        listing_price: 0,
+        previewUnavailable: false,
+      });
+      return;
+    }
+    try {
+      const res = await api.post('/pricing/preview', {
+        base_price: price,
+        vat_pct: Number.isFinite(vat) ? vat : undefined,
+        currency: MERCHANT_PRODUCT_CURRENCY,
+        viewer_currency: viewerCcy ? normalizeCurrency(viewerCcy) : undefined,
+      });
+      setPricePreview({ ...res.data, previewUnavailable: false });
+    } catch {
+      setPricePreview({
+        base_price: price,
+        platform_fee_pct: null,
+        vat_pct: null,
+        platform_fee_amount: 0,
+        vat_amount: 0,
+        listing_price: 0,
+        previewUnavailable: true,
+      });
+    }
+  };
 
   useEffect(() => {
-    fetchCategories();
-    fetchProducts();
+    if (formData.basePrice) {
+      fetchPricePreview(formData.basePrice, formData.vatPct, viewerCurrency);
+    }
+  }, [formData.basePrice, formData.vatPct, viewerCurrency]);
+
+  useEffect(() => {
     const handleClickOutside = () => setMenuOpenSku(null);
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
-
-  const fetchCategories = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`https://pakacha.com/api/v1/categories/?t=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setCategories(res.data);
-      localStorage.setItem('cached_categories', JSON.stringify(res.data));
-    } catch (err) {
-      console.error('Failed to fetch categories');
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`https://pakacha.com/api/v1/products/my-products?t=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setProducts(res.data);
-      localStorage.setItem('cached_products', JSON.stringify(res.data));
-    } catch (err) {
-      console.error('Failed to fetch products');
-    }
-  };
 
   const openDrawer = (mode, product = null) => {
     setDrawerMode(mode);
@@ -95,11 +191,18 @@ const ProductList = () => {
         name: product.name,
         description: product.description || '',
         basePrice: product.base_price.toString(),
-        categoryId: product.category_id || ''
+        categoryId: product.category_id || '',
+        stockQuantity: product.stock_quantity?.toString() || '',
+        discountPct: product.discount_pct?.toString() || '',
+        promoCode: product.promo_code || '',
+        minimumOrderQty: product.minimum_order_qty?.toString() || '',
+        vatPct: (product.vat ?? 18).toString(),
+        freeDelivery: isFreeDelivery(product) ? 'yes' : 'no',
+        bulkTiers: product.bulk_tiers || [],
       });
       setProductImages(product.images ? product.images.map(img => img.base64_content) : []);
     } else {
-      setFormData({ name: '', description: '', basePrice: '', categoryId: '' });
+      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', freeDelivery: 'no', bulkTiers: [] });
       setProductImages([]);
     }
     setStep(1);
@@ -110,55 +213,57 @@ const ProductList = () => {
   const handlePublish = async () => {
     try {
       setIsPublishing(true);
-      const token = localStorage.getItem('token');
       const payload = {
         name: formData.name,
         description: formData.description,
         base_price: parseFloat(formData.basePrice),
         category_id: formData.categoryId || null,
-        images: productImages.map((img, idx) => ({ base64_content: img, sort_order: idx }))
+        stock_quantity: parseInt(formData.stockQuantity || '0', 10),
+        discount_pct: formData.discountPct ? parseFloat(formData.discountPct) : null,
+        promo_code: formData.promoCode || null,
+        minimum_order_qty: formData.minimumOrderQty ? parseInt(formData.minimumOrderQty, 10) : null,
+        vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
+        currency: MERCHANT_PRODUCT_CURRENCY,
+        free_delivery: formData.freeDelivery === 'yes',
+        bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
+        images: productImages.map((img, idx) => ({ base64_content: img, sort_order: idx })),
       };
 
       if (drawerMode === 'EDIT') {
-        await axios.patch(`https://pakacha.com/api/v1/products/${selectedProduct.sku}`, payload, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await api.patch(`/products/${selectedProduct.sku}`, payload);
       } else {
-        await axios.post('https://pakacha.com/api/v1/products/', payload, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await api.post('/products/', payload);
       }
       
-      await fetchProducts();
+      refreshProducts();
       setIsDrawerOpen(false);
-      Swal.fire({ icon: 'success', title: 'Product Saved', timer: 2000, showConfirmButton: false });
+      alertSuccess('Product Saved', 'Your product has been saved successfully.');
     } catch (err) {
-      Swal.fire('Error', 'Operation failed', 'error');
+      const detail = err.response?.data?.detail;
+      const message = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((e) => e.msg).join(', ')
+          : 'Could not save the product. Please try again.';
+      alertError('Operation Failed', message);
     } finally {
       setIsPublishing(false);
     }
   };
 
   const handleDeleteProduct = async (sku) => {
-    const result = await Swal.fire({
+    const result = await confirmDelete({
       title: 'Delete Product?',
-      text: "This action cannot be undone.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      confirmButtonText: 'Yes, delete it!'
+      text: 'This action cannot be undone.',
     });
 
     if (result.isConfirmed) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`https://pakacha.com/api/v1/products/${sku}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        Swal.fire('Deleted!', 'Product removed.', 'success');
-        fetchProducts();
+        await api.delete(`/products/${sku}`);
+        alertSuccess('Deleted', 'Product removed successfully.');
+        refreshProducts();
       } catch (err) {
-        Swal.fire('Error', 'Failed to delete product', 'error');
+        alertError('Delete Failed', 'Failed to delete product. Please try again.');
       }
     }
   };
@@ -252,8 +357,12 @@ const ProductList = () => {
       </div>
 
       <div className="product-grid-refined">
-        {filteredProducts.map(product => (
-            <div key={product.sku} className="product-card-expert glass animate-fade">
+        {filteredProducts.map(product => {
+          const display = getPublicPriceDisplay(product, viewerCurrency, fxRates);
+          const delivery = getProductDeliveryLabel(product);
+          const promo = getProductPromotionDisplay(product);
+          return (
+            <div key={product.sku} className="product-card-public animate-fade">
               <div className="card-media">
                 <div className="media-placeholder">
                   {product.images?.[0] ? (
@@ -261,10 +370,13 @@ const ProductList = () => {
                   ) : <Package size={48} strokeWidth={1} />}
                 </div>
                 <div className={`badge ${product.is_active ? 'active' : 'hidden'}`}>
-                  {product.is_active ? 'Public' : 'Private'}
+                  {product.is_active ? 'Live' : 'Draft'}
                 </div>
+                {promo?.badge && (
+                  <div className="card-promo-badge">{promo.badge}</div>
+                )}
                 <div className="card-menu-container">
-                   <button className="menu-trigger-btn" onClick={(e) => toggleMenu(e, product.sku)}>
+                   <button className="menu-trigger-btn public-card-menu" onClick={(e) => toggleMenu(e, product.sku)}>
                       <MoreVertical size={18} />
                    </button>
                    {menuOpenSku === product.sku && (
@@ -277,24 +389,30 @@ const ProductList = () => {
                    )}
                 </div>
               </div>
-              <div className="card-content">
-                <div className="card-header-row">
-                  <span className="category-tag">{getCategoryName(product.category_id)}</span>
-                  <span className="sku-id">{product.sku}</span>
-                </div>
-                <h3>{product.name}</h3>
-                <div className="card-footer-row">
-                  <div className="price-tag">
-                    <span className="currency">UGX</span>
-                    <span className="amount">{Math.round(product.listing_price || (product.base_price * 1.05))?.toLocaleString()}</span>
-                  </div>
-                  <button className="view-details-btn" onClick={() => openDrawer('VIEW', product)}>
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
+              <div className="card-content-public">
+                <h3 className="card-title-public" title={product.name}>{product.name}</h3>
+                <PublicCardPrice
+                  display={display}
+                  size={display.showBoth ? 'local' : 'usd'}
+                  className="card-price-local"
+                />
+                <p className="card-source">Pochi</p>
+                {delivery && (
+                  <p className="card-delivery is-free">{delivery.text}</p>
+                )}
+                {promo?.code && (
+                  <p className="card-promo-code">
+                    <Tag size={12} /> Code <strong>{promo.code}</strong>
+                    {promo.endsLabel ? ` · ends ${promo.endsLabel}` : ''}
+                  </p>
+                )}
+                {display.showBoth && (
+                  <PublicCardPrice display={display} size="usd" />
+                )}
               </div>
             </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Professional Drawer */}
@@ -356,9 +474,41 @@ const ProductList = () => {
                        <label>Description</label>
                        <p>{selectedProduct?.description || 'No description provided.'}</p>
                     </div>
-                    <div className="detail-box highlight">
-                       <label>Market Listing Price</label>
-                       <p className="price">UGX {selectedProduct?.base_price.toLocaleString()}</p>
+                    <div className="detail-box highlight public-price-detail">
+                       <label>Public pricing preview</label>
+                       {selectedProduct && (() => {
+                         const enriched = enrichProductForViewer(selectedProduct, viewerCurrency, fxRates);
+                         const display = getPublicPriceDisplay(enriched, viewerCurrency, fxRates);
+                         return (
+                           <div className="public-price-detail-ebay">
+                             <PublicCardPrice
+                               display={display}
+                               size={display.showBoth ? 'local' : 'usd'}
+                               className="card-price-local"
+                               style={{ color: 'inherit' }}
+                             />
+                             <p className="card-source" style={{ color: 'inherit' }}>Pochi</p>
+                             {(() => {
+                               const delivery = getProductDeliveryLabel(selectedProduct);
+                               return delivery ? (
+                                 <p className="card-delivery is-free" style={{ color: 'inherit' }}>
+                                   {delivery.text}
+                                 </p>
+                               ) : null;
+                             })()}
+                             <PublicCardPrice display={display} size="usd" style={{ color: 'inherit' }} />
+                           </div>
+                         );
+                       })()}
+                       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
+                         Base: {formatMoney(selectedProduct?.base_price, MERCHANT_PRODUCT_CURRENCY)}
+                         {selectedProduct?.platform_fee != null && ` + ${selectedProduct.platform_fee}% platform fee`}
+                         {selectedProduct?.vat != null && ` + ${selectedProduct.vat}% tax`}
+                       </p>
+                    </div>
+                    <div className="detail-box">
+                       <label>Stock Quantity</label>
+                       <p>{selectedProduct?.stock_quantity > 0 ? `${selectedProduct.stock_quantity} units available` : 'Out of stock — edit product and set Stock Quantity on step 1'}</p>
                     </div>
                  </div>
               </div>
@@ -380,6 +530,20 @@ const ProductList = () => {
                       />
                     </div>
                     <p className="field-help">Keep it short and descriptive (max 60 chars).</p>
+                  </div>
+                  <div className="form-field">
+                    <label>Stock Quantity <HelpCircle size={14} className="label-tip" /></label>
+                    <div className="input-wrapper">
+                      <Package size={18} className="field-icon" />
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.stockQuantity}
+                        onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+                        placeholder="e.g. 100"
+                      />
+                    </div>
+                    <p className="field-help">Units available for sale. Products with 0 stock show as Out of Stock in the Pochi app.</p>
                   </div>
                   <div className="form-field">
                     <label>Market Category</label>
@@ -434,7 +598,7 @@ const ProductList = () => {
                 </div>
                 <div className="expert-form">
                   <div className="form-field">
-                    <label>Base Selling Price (UGX)</label>
+                    <label>Base Selling Price (USD)</label>
                     <div className="input-wrapper">
                       <DollarSign size={18} className="field-icon" />
                       <input 
@@ -443,11 +607,138 @@ const ProductList = () => {
                         onChange={e => setFormData({...formData, basePrice: e.target.value})} 
                       />
                     </div>
+                    <p className="field-help">Prices are stored in USD. Buyers see a local price in their region.</p>
                   </div>
+                  <div className="form-field">
+                    <label>Tax / VAT (%)</label>
+                    <div className="input-wrapper">
+                      <Percent size={18} className="field-icon" />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={formData.vatPct}
+                        onChange={(e) => setFormData({ ...formData, vatPct: e.target.value })}
+                        placeholder="e.g. 18"
+                      />
+                    </div>
+                    <p className="field-help">Enter the tax rate you pay to the tax authority. This is added to the buyer price.</p>
+                  </div>
+                  <div className="form-field">
+                    <label>Delivery</label>
+                    <div className="input-wrapper">
+                      <select
+                        value={formData.freeDelivery}
+                        onChange={(e) => setFormData({ ...formData, freeDelivery: e.target.value })}
+                      >
+                        <option value="no">Delivery not included (buyer pays shipping)</option>
+                        <option value="yes">Free delivery</option>
+                      </select>
+                    </div>
+                    <p className="field-help">
+                      Card preview:{' '}
+                      {formData.freeDelivery === 'yes' ? (
+                        <span className="delivery-preview-free">Free delivery</span>
+                      ) : (
+                        <span className="delivery-preview-paid">Hidden on card</span>
+                      )}
+                    </p>
+                  </div>
+                  {showRetailFields && (
+                    <>
+                      <div className="form-field">
+                        <label>Retail Discount (%)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={formData.discountPct}
+                          onChange={(e) => setFormData({ ...formData, discountPct: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label>Promo Code (optional)</label>
+                        <input
+                          value={formData.promoCode}
+                          onChange={(e) => setFormData({ ...formData, promoCode: e.target.value })}
+                          placeholder="SUMMER10"
+                        />
+                        <p className="field-help">Label for checkout — discount % above sets the price shown on cards.</p>
+                      </div>
+                    </>
+                  )}
+                  {showWholesaleFields && (
+                    <>
+                      <div className="form-field">
+                        <label>Minimum Order Quantity (MOQ)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={formData.minimumOrderQty}
+                          onChange={(e) => setFormData({ ...formData, minimumOrderQty: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label>Wholesale Promo Code (optional)</label>
+                        <input
+                          value={formData.promoCode}
+                          onChange={(e) => setFormData({ ...formData, promoCode: e.target.value })}
+                          placeholder="BULK-SUMMER"
+                        />
+                      </div>
+                      <div className="form-field full">
+                        <label>Bulk Pricing Tiers</label>
+                        {formData.bulkTiers.map((tier, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                            <input
+                              type="number"
+                              placeholder="Min qty"
+                              value={tier.min_quantity}
+                              onChange={(e) => {
+                                const tiers = [...formData.bulkTiers];
+                                tiers[idx] = { ...tiers[idx], min_quantity: parseInt(e.target.value, 10) };
+                                setFormData({ ...formData, bulkTiers: tiers });
+                              }}
+                            />
+                            <input
+                              type="number"
+                              placeholder="Discount %"
+                              value={tier.discount_pct}
+                              onChange={(e) => {
+                                const tiers = [...formData.bulkTiers];
+                                tiers[idx] = { ...tiers[idx], discount_pct: parseFloat(e.target.value) };
+                                setFormData({ ...formData, bulkTiers: tiers });
+                              }}
+                            />
+                            <button type="button" onClick={() => setFormData({ ...formData, bulkTiers: formData.bulkTiers.filter((_, i) => i !== idx) })}>Remove</button>
+                          </div>
+                        ))}
+                        <button type="button" className="btn-secondary-expert" onClick={() => setFormData({ ...formData, bulkTiers: [...formData.bulkTiers, { min_quantity: '', discount_pct: '' }] })}>
+                          Add Tier
+                        </button>
+                      </div>
+                    </>
+                  )}
                   <div className="pricing-calculator-card">
-                    <div className="calc-row"><span>Base Price</span><span>UGX {parseFloat(formData.basePrice || 0).toLocaleString()}</span></div>
-                    <div className="calc-row"><span>Platform Fee (5%)</span><span>UGX {((formData.basePrice || 0) * 0.05).toLocaleString()}</span></div>
-                    <div className="calc-row total"><span>Listing Price</span><span className="final-price">UGX {parseFloat(listingPrice).toLocaleString()}</span></div>
+                    {pricePreview.previewUnavailable ? (
+                      <p style={{ fontSize: 13, color: 'var(--danger, #c0392b)' }}>
+                        Price preview unavailable. Check your connection or try again.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="calc-row"><span>Base Price (your revenue)</span><span>{formatMoney(parseFloat(formData.basePrice || 0), MERCHANT_PRODUCT_CURRENCY)}</span></div>
+                        <div className="calc-row"><span>Platform Fee ({pricePreview.platform_fee_pct ?? '—'}%)</span><span>{formatMoney(pricePreview.platform_fee_amount || 0, MERCHANT_PRODUCT_CURRENCY)}</span></div>
+                        <div className="calc-row"><span>Tax / VAT ({pricePreview.vat_pct ?? '—'}%)</span><span>{formatMoney(pricePreview.vat_amount || 0, MERCHANT_PRODUCT_CURRENCY)}</span></div>
+                        <div className="calc-row total"><span>Buyer Price (USD)</span><span className="final-price">{formatMoney(pricePreview.listing_price || 0, MERCHANT_PRODUCT_CURRENCY)}</span></div>
+                        {pricePreview.display_listing_price != null && pricePreview.display_currency && (
+                          <div className="calc-row"><span>Local estimate</span><span>≈ {formatMoney(pricePreview.display_listing_price, pricePreview.display_currency)}</span></div>
+                        )}
+                      </>
+                    )}
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                      Platform fee is set by Pochi. Tax rate is set by you per product.
+                    </p>
                   </div>
                   <div className="form-field">
                     <label>Full Description</label>

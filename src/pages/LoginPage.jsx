@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from '../config/api';
 import { useAuth } from '../context/AuthContext';
-import Swal from 'sweetalert2';
+import { alertSuccess, alertError, alertWarning } from '../utils/swal';
 import { Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
 import './LoginPage.css';
 import logo from '../assets/logo.png';
@@ -18,7 +19,7 @@ const LoginPage = () => {
     setLoading(true);
     
     try {
-      const response = await axios.post('https://pakacha.com/api/v1/auth/business/login', 
+      const response = await axios.post(`${API_BASE}/auth/business/login`, 
       new URLSearchParams({
         username: formData.email,
         password: formData.password
@@ -28,24 +29,11 @@ const LoginPage = () => {
       
       login(response.data.access_token);
       
-      Swal.fire({
-        icon: 'success',
-        title: 'Welcome Back!',
-        text: 'Login successful. Redirecting to your dashboard...',
-        timer: 1500,
-        showConfirmButton: false,
-        background: '#ffffff',
-        iconColor: '#ff7e47'
-      });
+      alertSuccess('Welcome Back', 'Login successful. Redirecting to your dashboard...', { timer: 1500 });
 
       setTimeout(() => navigate('/dashboard'), 1500);
     } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Login Failed',
-        text: err.response?.data?.detail || 'Please check your credentials and try again.',
-        confirmButtonColor: '#ff7e47'
-      });
+      alertError('Login Failed', err.response?.data?.detail || 'Please check your credentials and try again.');
     } finally {
       setLoading(false);
     }

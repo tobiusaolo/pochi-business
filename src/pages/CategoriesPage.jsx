@@ -1,193 +1,233 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import { 
-  Plus, X, Search, Layers, Edit3, Trash2, ChevronRight, 
-  Package, Info, Tag, ArrowRight, Grid, MoreVertical, Calendar,
-  Eye, Save
+import { useQueryClient } from '@tanstack/react-query';
+import { API_BASE } from '../config/api';
+import { useCategories } from '../hooks/queries';
+import { queryKeys } from '../lib/queryKeys';
+import {
+  Search,
+  Layers,
+  Package,
+  Tag,
+  Grid,
+  Plus,
+  Edit3,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import { alertSuccess, alertError, alertWarning, confirmDelete } from '../utils/swal';
 import './CategoriesPage.css';
 
+const CHANNELS = ['RETAIL', 'WHOLESALE', 'BOTH'];
+const EMPTY_FORM = { name: '', description: '', channel: 'BOTH' };
+
 const CategoriesPage = () => {
-  const [categories, setCategories] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cached_categories');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState('ADD'); // ADD, EDIT, VIEW
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [menuOpenId, setMenuOpenId] = useState(null);
-  
+  const queryClient = useQueryClient();
+  const { data: categories = [] } = useCategories();
   const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState({ name: '', description: '' });
-  
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchCategories();
-    const handleClickOutside = () => setMenuOpenId(null);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+  const token = () => localStorage.getItem('token');
+  const headers = () => ({ Authorization: `Bearer ${token()}` });
 
-  const fetchCategories = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('https://pakacha.com/api/v1/categories/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setCategories(res.data);
-      localStorage.setItem('cached_categories', JSON.stringify(res.data));
-    } catch (err) {
-      console.error('Failed to fetch categories');
-    }
+  const refreshCategories = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.categories });
+
+  const resetForm = () => {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(false);
   };
 
-  const openDrawer = (mode, category = null) => {
-    setDrawerMode(mode);
-    setSelectedCategory(category);
-    if (category) {
-      setFormData({ name: category.name, description: category.description || '' });
-    } else {
-      setFormData({ name: '', description: '' });
-    }
-    setIsDrawerOpen(true);
-    setMenuOpenId(null);
+  const openCreate = () => {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(true);
   };
 
-  const handleSaveCategory = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      if (drawerMode === 'EDIT') {
-        await axios.patch(`https://pakacha.com/api/v1/categories/${selectedCategory.id}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } else {
-        await axios.post('https://pakacha.com/api/v1/categories/', formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
-      
-      Swal.fire({
-        icon: 'success',
-        title: drawerMode === 'EDIT' ? 'Category Updated' : 'Category Created',
-        timer: 1500,
-        showConfirmButton: false
-      });
-
-      setIsDrawerOpen(false);
-      fetchCategories();
-    } catch (err) {
-      Swal.fire('Error', 'Operation failed', 'error');
-    }
-  };
-
-  const handleDeleteCategory = async (id) => {
-    setMenuOpenId(null);
-    const result = await Swal.fire({
-      title: 'Delete Category?',
-      text: "Products in this category might be affected.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      confirmButtonText: 'Yes, delete it!'
+  const openEdit = (cat) => {
+    setForm({
+      name: cat.name,
+      description: cat.description || '',
+      channel: cat.channel || 'BOTH',
     });
+    setEditingId(cat.id);
+    setShowForm(true);
+  };
 
-    if (result.isConfirmed) {
-      try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`https://pakacha.com/api/v1/categories/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        Swal.fire('Deleted!', 'Category removed.', 'success');
-        fetchCategories();
-      } catch (err) {
-        Swal.fire('Error', 'Could not delete category.', 'error');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      alertWarning('Name required', 'Enter a category name.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingId) {
+        await axios.patch(`${API_BASE}/categories/${editingId}`, form, { headers: headers() });
+      } else {
+        await axios.post(`${API_BASE}/categories/`, form, { headers: headers() });
       }
+      await refreshCategories();
+      resetForm();
+      alertSuccess(editingId ? 'Category updated' : 'Category created');
+    } catch (err) {
+      alertError('Error', err.response?.data?.detail || 'Failed to save category');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const filteredCategories = categories.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.description && c.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const handleDelete = async (cat) => {
+    const result = await confirmDelete({
+      title: 'Delete category?',
+      text: `"${cat.name}" will be removed. Products using it must be reassigned first.`,
+    });
+    if (!result.isConfirmed) return;
 
-  const toggleMenu = (e, id) => {
-    e.stopPropagation();
-    setMenuOpenId(menuOpenId === id ? null : id);
+    try {
+      await axios.delete(`${API_BASE}/categories/${cat.id}`, { headers: headers() });
+      await refreshCategories();
+      if (editingId === cat.id) resetForm();
+      alertSuccess('Category deleted');
+    } catch (err) {
+      alertError('Error', err.response?.data?.detail || 'Failed to delete category');
+    }
   };
 
-
+  const filteredCategories = categories.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.description && c.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   return (
     <div className="categories-container animate-fade">
       <div className="page-header-refined">
         <div className="title-group">
           <h1>Product Categories</h1>
-          <p>Organize your products into meaningful groups.</p>
+          <p>Create and manage categories for your products.</p>
         </div>
         <div className="header-actions">
-          <button className="btn-secondary-expert" onClick={() => navigate('/dashboard/products')}>
-             <Package size={18} /> Products
+          <button type="button" className="btn-add-category" onClick={openCreate}>
+            <span className="icon-box">
+              <Plus size={18} />
+            </span>
+            Add Category
           </button>
-          <button className="btn-add-category" onClick={() => openDrawer('ADD')}>
-            <div className="icon-box"><Plus size={20} /></div>
-            <span>New Category</span>
+          <button type="button" className="btn-secondary-expert" onClick={() => navigate('/dashboard/products')}>
+            <Package size={18} /> Products
           </button>
         </div>
       </div>
 
+      {showForm && (
+        <div className="category-modal-overlay" onClick={resetForm} role="presentation">
+          <form
+            onSubmit={handleSubmit}
+            className="category-modal glass"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="category-modal-header">
+              <h3>{editingId ? 'Edit category' : 'New category'}</h3>
+              <button type="button" className="action-dot" onClick={resetForm} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="category-form-grid">
+              <div className="form-field form-field-wide">
+                <label htmlFor="cat-name">Name</label>
+                <input
+                  id="cat-name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Electronics"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="form-field form-field-wide">
+                <label htmlFor="cat-channel">Channel</label>
+                <select
+                  id="cat-channel"
+                  value={form.channel}
+                  onChange={(e) => setForm({ ...form, channel: e.target.value })}
+                >
+                  {CHANNELS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field form-field-wide">
+                <label htmlFor="cat-desc">Description</label>
+                <input
+                  id="cat-desc"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Optional short description"
+                />
+              </div>
+            </div>
+            <div className="category-form-actions">
+              <button type="button" className="btn-secondary-expert" onClick={resetForm}>
+                Cancel
+              </button>
+              <button type="submit" className="btn-add-category" disabled={saving}>
+                {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create category'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="inventory-controls glass">
         <div className="search-box-refined">
           <Search size={18} className="search-icon" />
-          <input 
-            type="text" 
-            placeholder="Search categories..." 
+          <input
+            type="text"
+            placeholder="Search categories..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="categories-grid">
-        {filteredCategories.length === 0 ? (
-          <div className="empty-inventory glass">
-            <div className="empty-icon"><Layers size={64} /></div>
-            <h2>No categories found</h2>
+      {filteredCategories.length === 0 ? (
+        <div className="empty-inventory glass">
+          <div className="empty-icon">
+            <Layers size={64} />
           </div>
-        ) : (
-          filteredCategories.map(cat => (
+          <h2>{searchTerm ? 'No categories found' : 'No categories yet'}</h2>
+          <p>{searchTerm ? 'Try a different search term.' : 'Add your first category to start organizing products.'}</p>
+        </div>
+      ) : (
+        <div className="categories-grid">
+          {filteredCategories.map((cat) => (
             <div key={cat.id} className="category-card glass animate-fade">
               <div className="card-top">
                 <div className="cat-icon-box">
                   <Grid size={24} />
                 </div>
-                
-                {/* Category Menu */}
-                <div className="card-menu-container">
-                   <button className="menu-trigger-btn" onClick={(e) => toggleMenu(e, cat.id)}>
-                      <MoreVertical size={18} />
-                   </button>
-                   {menuOpenId === cat.id && (
-                     <div className="card-dropdown glass animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => openDrawer('VIEW', cat)}>
-                           <Eye size={16} /> View Details
-                        </button>
-                        <button onClick={() => openDrawer('EDIT', cat)}>
-                           <Edit3 size={16} /> Edit Category
-                        </button>
-                        <hr />
-                        <button className="danger" onClick={() => handleDeleteCategory(cat.id)}>
-                           <Trash2 size={16} /> Delete
-                        </button>
-                     </div>
-                   )}
+                <div className="cat-actions-menu">
+                  <button type="button" className="action-circle" onClick={() => openEdit(cat)} title="Edit">
+                    <Edit3 size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="action-circle danger"
+                    onClick={() => handleDelete(cat)}
+                    title="Delete"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
               <div className="card-body">
@@ -196,91 +236,14 @@ const CategoriesPage = () => {
               </div>
               <div className="card-footer">
                 <div className="product-count">
-                   <Package size={14} />
-                   <span>{cat.business_id ? 'Private' : 'Global'}</span>
+                  <Tag size={14} />
+                  <span>{cat.channel || 'BOTH'}</span>
                 </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Expert Drawer for Categories */}
-      <div className={`expert-drawer-overlay ${isDrawerOpen ? 'open' : ''}`} onClick={() => setIsDrawerOpen(false)}>
-        <div className="expert-drawer" onClick={e => e.stopPropagation()}>
-           <div className="drawer-nav">
-              <div className="nav-header">
-                <div className="icon-badge">
-                  {drawerMode === 'VIEW' ? <Eye size={24} /> : drawerMode === 'EDIT' ? <Edit3 size={24} /> : <Plus size={24} />}
-                </div>
-                <div className="text">
-                  <h2>{drawerMode === 'VIEW' ? 'Category Details' : drawerMode === 'EDIT' ? 'Edit Category' : 'New Category'}</h2>
-                  <p>{drawerMode === 'VIEW' ? 'View-only mode' : 'Catalog organization'}</p>
-                </div>
-              </div>
-              <button className="drawer-close-btn" onClick={() => setIsDrawerOpen(false)}><X /></button>
-           </div>
-
-           <div className="drawer-main">
-              {drawerMode === 'VIEW' ? (
-                <div className="view-panel animate-fade">
-                   <div className="view-header-visual glass">
-                      <Grid size={48} className="cat-visual-icon" />
-                      <h3>{selectedCategory?.name}</h3>
-                   </div>
-                   <div className="view-details-list">
-                      <div className="detail-item">
-                        <label><Info size={14} /> Description</label>
-                        <p>{selectedCategory?.description || 'No description provided.'}</p>
-                      </div>
-                      <div className="detail-item">
-                        <label><Tag size={14} /> Type</label>
-                        <p>{selectedCategory?.business_id ? 'Private Business Category' : 'Platform Global Category'}</p>
-                      </div>
-                   </div>
-                   <div className="view-footer">
-                      <button className="btn-primary-expert" onClick={() => setDrawerMode('EDIT')}>
-                         Modify Category <Edit3 size={18} />
-                      </button>
-                   </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSaveCategory} className="expert-form p-40">
-                    <div className="form-field">
-                      <label>Category Name</label>
-                      <div className="input-wrapper">
-                        <Tag size={18} className="field-icon" />
-                        <input 
-                          value={formData.name} 
-                          onChange={e => setFormData({...formData, name: e.target.value})} 
-                          placeholder="e.g. Organic Coffee"
-                          required 
-                        />
-                      </div>
-                    </div>
-                    <div className="form-field">
-                      <label>Description</label>
-                      <div className="input-wrapper">
-                        <Info size={18} className="field-icon" style={{top: '16px'}} />
-                        <textarea 
-                          value={formData.description} 
-                          onChange={e => setFormData({...formData, description: e.target.value})} 
-                          placeholder="Describe the products in this category..."
-                          rows="6"
-                          style={{paddingLeft: '48px'}}
-                        />
-                      </div>
-                    </div>
-                    <div className="panel-footer">
-                      <button type="submit" className="btn-primary-expert">
-                         {drawerMode === 'EDIT' ? 'Update Category' : 'Save Category'} <Save size={18} />
-                      </button>
-                    </div>
-                </form>
-              )}
-           </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 };

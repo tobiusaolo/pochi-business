@@ -1,0 +1,16 @@
+export const queryKeys = {
+  business: ['business'],
+  stats: ['stats'],
+  orders: ['orders'],
+  categories: ['categories'],
+  products: (viewerCurrency) => ['products', viewerCurrency],
+  notifications: ['notifications'],
+  paymentsSummary: ['payments', 'summary'],
+  paymentsTransactions: ['payments', 'transactions'],
+  paymentsDisbursements: ['payments', 'disbursements'],
+  payoutAccount: ['payments', 'payout-account'],
+  fxRates: ['fx-rates'],
+  geoCurrency: ['geo', 'currency'],
+  promotions: ['promotions'],
+  coupons: ['coupons'],
+};

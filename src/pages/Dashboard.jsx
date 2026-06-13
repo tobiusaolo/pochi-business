@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Outlet, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Package, ShoppingCart, BarChart3, Settings, LogOut, Clock, 
-  ShieldCheck, AlertCircle, FileCheck, HelpCircle, CreditCard, Layers, Bell 
+  ShieldCheck, AlertCircle, FileCheck, HelpCircle, CreditCard, Layers, Bell, Tag
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import { useNotifications } from '../hooks/queries';
 import './Dashboard.css';
 import pochiLogo from '../assets/logo.png';
 
@@ -13,38 +13,8 @@ const Dashboard = () => {
   const { business, logout, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const [unreadCount, setUnreadCount] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cached_notifications');
-      return cached ? JSON.parse(cached).filter(n => !n.is_read).length : 0;
-    } catch {
-      return 0;
-    }
-  });
-
-  useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const res = await axios.get('https://pakacha.com/api/v1/notifications', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const unread = res.data.filter(n => !n.is_read).length;
-        setUnreadCount(unread);
-        localStorage.setItem('cached_notifications', JSON.stringify(res.data));
-      } catch (err) {
-        console.error('Failed to update unread notifications count:', err);
-      }
-    };
-
-    fetchUnread();
-    
-    // Perform a background poll every 10 seconds for real-time notifications feel
-    const interval = setInterval(fetchUnread, 10000);
-    return () => clearInterval(interval);
-  }, [location.pathname]); // Run on mount and when location changes to capture instant read status updates
+  const { data: notifications = [] } = useNotifications({ refetchInterval: 30_000 });
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   if (loading) return <div className="loader">Loading Portal...</div>;
 
@@ -105,6 +75,9 @@ const Dashboard = () => {
                 </Link>
                 <Link to="/dashboard/payments" className={`nav-item ${location.pathname.includes('payments') ? 'active' : ''}`}>
                     <CreditCard size={20} /> Payments
+                </Link>
+                <Link to="/dashboard/promotions" className={`nav-item ${location.pathname.includes('promotions') ? 'active' : ''}`}>
+                    <Tag size={20} /> Promotions
                 </Link>
             </div>
 

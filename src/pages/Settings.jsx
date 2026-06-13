@@ -6,7 +6,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import Swal from 'sweetalert2';
+import { API_BASE } from '../config/api';
+import { alertSuccess, alertError } from '../utils/swal';
 import './Settings.css';
 
 const Settings = () => {
@@ -51,36 +52,26 @@ const Settings = () => {
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('https://pakacha.com/api/v1/business/change-request', formData, {
+      const res = await axios.post(`${API_BASE}/business/change-request`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Refresh Auth Context so entire app (and localStorage cache) updates smoothly in the background
       await refreshBusiness();
 
-      Swal.fire({
-        icon: 'success',
-        title: 'Changes Applied Successfully',
-        text: 'Your business profile has been updated and audit logs have been recorded.',
-        timer: 3000,
-        showConfirmButton: false,
-        timerProgressBar: true,
-        background: '#0b182a',
-        color: '#ffffff',
-        iconColor: '#10b981'
-      });
+      alertSuccess(
+        'Changes Applied',
+        'Your business profile has been updated and audit logs have been recorded.',
+        { timer: 3000 }
+      );
 
       setIsDrawerOpen(false);
     } catch (err) {
       console.error(err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Submission Failed',
-        text: err.response?.data?.detail || 'Could not process profile change request.',
-        background: '#0b182a',
-        color: '#ffffff',
-        iconColor: '#ef4444'
-      });
+      alertError(
+        'Submission Failed',
+        err.response?.data?.detail || 'Could not process profile change request.'
+      );
     } finally {
       setIsSubmitting(false);
     }

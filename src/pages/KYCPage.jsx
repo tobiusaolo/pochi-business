@@ -5,8 +5,9 @@ import {
   ScrollText, Download, FileCheck, Info
 } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE } from '../config/api';
 import './KYCPage.css';
-import Swal from 'sweetalert2';
+import { alertSuccess, alertError, alertWarning } from '../utils/swal';
 import {
   KYC_ACCEPT,
   KYC_FORMAT_HINT,
@@ -62,12 +63,7 @@ const KYCPage = () => {
 
     const error = validateKycFileClient(file, MAX_FILE_SIZE_MB);
     if (error) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Invalid file',
-        text: error,
-        confirmButtonColor: '#ff7f50',
-      });
+      alertWarning('Invalid file', error);
       e.target.value = '';
       return;
     }
@@ -197,22 +193,18 @@ const KYCPage = () => {
     e.preventDefault();
 
     if (!refundPolicyType) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Policy option required',
-        text: 'Please choose whether you are uploading your own policy or a signed Pochi template.',
-        confirmButtonColor: '#ff7f50',
-      });
+      alertWarning(
+        'Policy option required',
+        'Please choose whether you are uploading your own policy or a signed Pochi template.'
+      );
       return;
     }
 
     if (!files.refundPolicy && !previews.refundPolicy) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Policy document required',
-        text: `Please upload your Cancellation and Refund policy (${KYC_FORMAT_HINT}).`,
-        confirmButtonColor: '#ff7f50',
-      });
+      alertWarning(
+        'Policy document required',
+        `Please upload your Cancellation and Refund policy (${KYC_FORMAT_HINT}).`
+      );
       return;
     }
 
@@ -245,7 +237,7 @@ const KYCPage = () => {
       formData.append('refund_policy_type', refundPolicyType);
 
       const token = localStorage.getItem('token');
-      await axios.patch('https://pakacha.com/api/v1/business/kyc', formData, {
+      await axios.patch(`${API_BASE}/business/kyc`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
@@ -254,19 +246,16 @@ const KYCPage = () => {
 
       await refreshBusiness();
 
-      Swal.fire({
-        icon: 'success',
-        title: 'Documents Submitted!',
-        text: 'Your business verification is now being processed. We will notify you once approved.',
-        confirmButtonColor: '#ff7f50',
-      });
+      alertSuccess(
+        'Documents Submitted',
+        'Your business verification is being processed. We will notify you once approved.',
+        { showConfirmButton: true, timer: undefined }
+      );
     } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Upload Failed',
-        text: err.response?.data?.detail || err.message || 'Failed to upload KYC documents. Please try again.',
-        confirmButtonColor: '#ef4444',
-      });
+      alertError(
+        'Upload Failed',
+        err.response?.data?.detail || err.message || 'Failed to upload KYC documents. Please try again.'
+      );
     } finally {
       setLoading(false);
     }

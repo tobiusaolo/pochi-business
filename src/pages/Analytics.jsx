@@ -1,38 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useMemo } from 'react';
 import { BarChart3, TrendingUp, ShoppingBag, DollarSign, Activity, Package, Plus, CreditCard, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useBusinessStats } from '../hooks/queries';
 import './Analytics.css';
 
 const Analytics = () => {
-  const [stats, setStats] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cache_business_stats');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed?.basic_stats) return parsed;
-      }
-    } catch {}
-    return null;
-  });
+  const { data: stats } = useBusinessStats();
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get('https://pakacha.com/api/v1/admin/business/stats', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setStats(res.data);
-        localStorage.setItem('cache_business_stats', JSON.stringify(res.data));
-      } catch (err) {
-        console.error('Failed to fetch analytics');
-      }
-    };
-    fetchStats();
-  }, []);
-
-
+  const basic = stats?.basic_stats || {};
+  const totalRevenue = basic.total_revenue || 0;
+  const totalOrders = basic.total_orders || 0;
+  const activeProducts = basic.active_products || 0;
+  const avgOrderValue = useMemo(
+    () => (totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0),
+    [totalRevenue, totalOrders]
+  );
 
   return (
     <div className="analytics-container animate-fade">
@@ -78,75 +60,59 @@ const Analytics = () => {
           <div className="stat-icon primary"><DollarSign size={24} /></div>
           <div className="stat-info">
             <span className="lbl">Total Revenue</span>
-            <h2 className="val">{(stats?.basic_stats?.total_revenue || 0).toLocaleString()} UGX</h2>
+            <span className="val">UGX {totalRevenue.toLocaleString()}</span>
           </div>
         </div>
-
         <div className="stat-card glass">
-          <div className="stat-icon indigo"><ShoppingBag size={24} /></div>
+          <div className="stat-icon emerald"><ShoppingBag size={24} /></div>
           <div className="stat-info">
             <span className="lbl">Total Orders</span>
-            <h2 className="val">{stats?.basic_stats?.total_orders || 0}</h2>
+            <span className="val">{totalOrders}</span>
           </div>
         </div>
-
         <div className="stat-card glass">
-          <div className="stat-icon emerald"><Package size={24} /></div>
+          <div className="stat-icon amber"><Package size={24} /></div>
           <div className="stat-info">
             <span className="lbl">Active Products</span>
-            <h2 className="val">{stats?.basic_stats?.active_products || 0}</h2>
+            <span className="val">{activeProducts}</span>
+          </div>
+        </div>
+        <div className="stat-card glass">
+          <div className="stat-icon indigo"><TrendingUp size={24} /></div>
+          <div className="stat-info">
+            <span className="lbl">Avg Order Value</span>
+            <span className="val">UGX {avgOrderValue.toLocaleString()}</span>
           </div>
         </div>
       </div>
 
-      <div className="analytics-main-grid">
-        <div className="data-card glass">
-          <div className="card-header">
-            <h3><TrendingUp size={20} /> Top Performing Products</h3>
-          </div>
-          <div className="card-body">
-            {(!stats?.top_products || stats.top_products.length === 0) ? (
-                <p className="empty-msg">No sales data yet.</p>
-            ) : (
-                <div className="top-prods-list">
-                    {stats.top_products.map(prod => (
-                        <div key={prod.sku} className="prod-item">
-                            <div className="prod-meta">
-                                <strong>{prod.name}</strong>
-                                <span>{prod.sku}</span>
-                            </div>
-                            <div className="prod-vals">
-                                <strong>{prod.total_sold} Sold</strong>
-                                <span>{(prod.revenue_generated || 0).toLocaleString()} UGX</span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+      <div className="insights-section">
+        <div className="insights-section-header">
+          <div className="insights-title-wrap">
+            <div className="insights-title-icon"><Activity size={20} /></div>
+            <h2>Business Insights</h2>
           </div>
         </div>
-
-        <div className="data-card glass">
-          <div className="card-header">
-            <h3><Activity size={20} /> Recent Activity</h3>
+        <div className="insights-grid">
+          <div className="insight-card glass">
+            <div className="insight-icon indigo"><BarChart3 size={22} /></div>
+            <div className="insight-body">
+              <h3>Order Trends</h3>
+              <p className="insight-metric">{totalOrders.toLocaleString()}</p>
+              <p className="insight-caption">
+                {totalOrders === 1 ? 'order processed' : 'orders processed'} to date on Pochi
+              </p>
+            </div>
           </div>
-          <div className="card-body">
-            {(!stats?.recent_activity || stats.recent_activity.length === 0) ? (
-                <p className="empty-msg">No recent activity.</p>
-            ) : (
-                <div className="activity-timeline">
-                    {stats.recent_activity.map((act, idx) => (
-                        <div key={idx} className="activity-item">
-                            <div className="activity-dot"></div>
-                            <div className="activity-info">
-                                <strong>{act.event}</strong>
-                                <span>Order #{act.id?.slice(0, 8) || '...'} - {(act.amount || 0).toLocaleString()} UGX</span>
-                                <small>{act.time ? new Date(act.time).toLocaleString() : 'Just now'}</small>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+          <div className="insight-card glass">
+            <div className="insight-icon emerald"><Package size={22} /></div>
+            <div className="insight-body">
+              <h3>Inventory Status</h3>
+              <p className="insight-metric">{activeProducts.toLocaleString()}</p>
+              <p className="insight-caption">
+                {activeProducts === 1 ? 'product currently live' : 'products currently live'} on Pochi
+              </p>
+            </div>
           </div>
         </div>
       </div>

@@ -3,11 +3,16 @@ import {
   CreditCard, ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle2,
   XCircle, Smartphone, ChevronDown, RefreshCw, Loader2, Plus, Save
 } from 'lucide-react';
-import axios from 'axios';
-import Swal from 'sweetalert2';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../lib/api';
+import {
+  usePaymentsSummary,
+  usePaymentsTransactions,
+  usePaymentsDisbursements,
+  usePayoutAccount,
+} from '../hooks/queries';
+import { alertSuccess, alertError, alertWarning } from '../utils/swal';
 import './Payments.css';
-
-const BASE = 'https://pakacha.com/api/v1';
 
 const fmt = (n) => `UGX ${Number(n || 0).toLocaleString('en-UG', { minimumFractionDigits: 0 })}`;
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -20,75 +25,50 @@ const STATUS_CONFIG = {
 };
 
 const Payments = () => {
-  const token = localStorage.getItem('token');
-  const headers = { Authorization: `Bearer ${token}` };
+  const queryClient = useQueryClient();
+  const { data: summary, isLoading: summaryLoading } = usePaymentsSummary();
+  const { data: transactions = [], isLoading: txLoading } = usePaymentsTransactions();
+  const { data: disbursements = [], isLoading: disLoading } = usePaymentsDisbursements();
+  const { data: payoutAccount } = usePayoutAccount();
 
-  const [summary, setSummary]         = useState(null);
-  const [transactions, setTx]         = useState([]);
-  const [disbursements, setDis]       = useState([]);
-  const [payoutAccount, setAccount]   = useState(null);
-  const [tab, setTab]                 = useState('transactions');
-  const [loading, setLoading]         = useState(true);
-  const [saving, setSaving]           = useState(false);
-
-  // Payout form
-  const [phone, setPhone]       = useState('');
+  const [tab, setTab] = useState('transactions');
+  const [saving, setSaving] = useState(false);
+  const [phone, setPhone] = useState('');
   const [provider, setProvider] = useState('MTN');
-  const [accName, setAccName]   = useState('');
+  const [accName, setAccName] = useState('');
   const [editPayout, setEditPayout] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [sumRes, txRes, disRes, accRes] = await Promise.all([
-        axios.get(`${BASE}/payments/summary`, { headers }),
-        axios.get(`${BASE}/payments/transactions`, { headers }),
-        axios.get(`${BASE}/payments/disbursements`, { headers }),
-        axios.get(`${BASE}/payments/payout-account`, { headers }),
-      ]);
-      setSummary(sumRes.data);
-      setTx(txRes.data || []);
-      setDis(disRes.data || []);
-      if (accRes.data) {
-        setAccount(accRes.data);
-        setPhone(accRes.data.phone_number);
-        setProvider(accRes.data.provider);
-        setAccName(accRes.data.account_name);
-      }
-    } catch (err) {
-      console.error('Failed to load payments:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loading = summaryLoading && !summary;
 
-  useEffect(() => { load(); }, []);
+  const refreshPayments = () =>
+    queryClient.invalidateQueries({ queryKey: ['payments'] });
 
   useEffect(() => {
-    const handlePayoutSent = () => {
-      console.log("Real-time payout disbursement event received. Reloading business payments data...");
-      load();
-    };
-    window.addEventListener('poch-biz-payout-sent', handlePayoutSent);
-    return () => {
-      window.removeEventListener('poch-biz-payout-sent', handlePayoutSent);
-    };
-  }, []);
+    if (payoutAccount) {
+      setPhone(payoutAccount.phone_number || '');
+      setProvider(payoutAccount.provider || 'MTN');
+      setAccName(payoutAccount.account_name || '');
+    }
+  }, [payoutAccount]);
 
   const savePayoutAccount = async (e) => {
     e.preventDefault();
     if (!phone || !accName) {
-      Swal.fire({ icon: 'warning', title: 'Missing Fields', text: 'Please fill in all payout account details.', background: '#fff', color: '#0b182a' });
+      alertWarning('Missing Fields', 'Please fill in all payout account details.');
       return;
     }
     setSaving(true);
     try {
-      await axios.put(`${BASE}/payments/payout-account`, { phone_number: phone, provider, account_name: accName }, { headers });
-      await load();
+      await api.put('/payments/payout-account', {
+        phone_number: phone,
+        provider,
+        account_name: accName,
+      });
+      await refreshPayments();
       setEditPayout(false);
-      Swal.fire({ icon: 'success', title: 'Saved!', text: 'Your payout account has been updated.', timer: 2000, showConfirmButton: false });
+      alertSuccess('Saved', 'Your payout account has been updated.');
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed', text: 'Could not save payout account. Please try again.' });
+      alertError('Failed', 'Could not save payout account. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -104,7 +84,7 @@ const Payments = () => {
           <h1>Payments & Payouts</h1>
           <p>Track your earnings, payment transactions, and disbursement history.</p>
         </div>
-        <button className="btn-refresh" onClick={load} disabled={loading}>
+        <button className="btn-refresh" onClick={refreshPayments} disabled={loading}>
           {loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Refresh
         </button>
       </div>

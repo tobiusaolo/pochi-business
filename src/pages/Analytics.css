@@ -179,3 +179,107 @@
     color: var(--text-muted);
     font-style: italic;
 }
+
+/* Business Insights */
+.insights-section {
+    margin-top: 8px;
+}
+
+.insights-section-header {
+    margin-bottom: 20px;
+}
+
+.insights-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.insights-title-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.insights-section-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--secondary);
+    margin: 0;
+}
+
+.insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.insight-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 24px;
+    border-radius: 16px;
+    background: white;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.insight-card:hover {
+    transform: translateY(-3px);
+}
+
+.insight-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.insight-icon.indigo {
+    background: #EEF2FF;
+    color: #4F46E5;
+}
+
+.insight-icon.emerald {
+    background: #ECFDF5;
+    color: #10B981;
+}
+
+.insight-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.insight-body h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 0;
+}
+
+.insight-metric {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--secondary);
+    line-height: 1.1;
+    margin: 4px 0 0;
+}
+
+.insight-caption {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
