@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config/api';
+import { useCategories } from '../hooks/queries';
 import { MERCHANT_PRODUCT_CURRENCY, normalizeCurrency, formatMoney } from '../utils/currency';
 import { Package, Tag, DollarSign, Info, Plus } from 'lucide-react';
 import './AddProduct.css';
 
 const AddProduct = () => {
-  const [categories, setCategories] = useState([]);
+  const { data: categories = [] } = useCategories();
   const [formData, setFormData] = useState({
     sku: '',
     name: '',
@@ -63,13 +64,6 @@ const AddProduct = () => {
         });
       });
   }, [formData.basePrice, formData.vatPct]);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    axios.get(`${API_BASE}/categories/`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setCategories((res.data || []).filter((c) => c.business_id)))
-      .catch(() => {});
-  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

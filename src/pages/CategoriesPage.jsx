@@ -22,9 +22,17 @@ import './CategoriesPage.css';
 const CHANNELS = ['RETAIL', 'WHOLESALE', 'BOTH'];
 const EMPTY_FORM = { name: '', description: '', channel: 'BOTH' };
 
+const isPlatformCategory = (cat) => cat.business_id == null;
+
+const channelLabel = (channel) => {
+  if (channel === 'RETAIL') return 'Retail';
+  if (channel === 'WHOLESALE') return 'Wholesale';
+  return 'Retail & Wholesale';
+};
+
 const CategoriesPage = () => {
   const queryClient = useQueryClient();
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [], isLoading, isError, error, refetch } = useCategories();
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -51,6 +59,10 @@ const CategoriesPage = () => {
   };
 
   const openEdit = (cat) => {
+    if (isPlatformCategory(cat)) {
+      alertWarning('Platform category', 'Platform categories are managed by admin and cannot be edited here.');
+      return;
+    }
     setForm({
       name: cat.name,
       description: cat.description || '',
@@ -85,6 +97,10 @@ const CategoriesPage = () => {
   };
 
   const handleDelete = async (cat) => {
+    if (isPlatformCategory(cat)) {
+      alertWarning('Platform category', 'Platform categories are managed by admin and cannot be deleted.');
+      return;
+    }
     const result = await confirmDelete({
       title: 'Delete category?',
       text: `"${cat.name}" will be removed. Products using it must be reassigned first.`,
@@ -101,6 +117,9 @@ const CategoriesPage = () => {
     }
   };
 
+  const platformCategories = categories.filter(isPlatformCategory);
+  const ownCategories = categories.filter((c) => !isPlatformCategory(c));
+
   const filteredCategories = categories.filter(
     (c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -112,7 +131,7 @@ const CategoriesPage = () => {
       <div className="page-header-refined">
         <div className="title-group">
           <h1>Product Categories</h1>
-          <p>Create and manage categories for your products.</p>
+          <p>Platform categories from admin plus your own store categories for organizing products.</p>
         </div>
         <div className="header-actions">
           <button type="button" className="btn-add-category" onClick={openCreate}>
@@ -198,9 +217,25 @@ const CategoriesPage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        <span className="cat-count-label">
+          {platformCategories.length} platform · {ownCategories.length} yours
+        </span>
       </div>
 
-      {filteredCategories.length === 0 ? (
+      {isLoading ? (
+        <div className="empty-inventory glass">
+          <p>Loading categories...</p>
+        </div>
+      ) : isError ? (
+        <div className="empty-inventory glass">
+          <div className="empty-icon"><Layers size={64} /></div>
+          <h2>Could not load categories</h2>
+          <p>{error?.response?.data?.detail || error?.message || 'Check your connection and try again.'}</p>
+          <button type="button" className="btn-add-category" onClick={() => refetch()}>
+            Retry
+          </button>
+        </div>
+      ) : filteredCategories.length === 0 ? (
         <div className="empty-inventory glass">
           <div className="empty-icon">
             <Layers size={64} />
@@ -210,12 +245,17 @@ const CategoriesPage = () => {
         </div>
       ) : (
         <div className="categories-grid">
-          {filteredCategories.map((cat) => (
-            <div key={cat.id} className="category-card glass animate-fade">
+          {filteredCategories.map((cat) => {
+            const platform = isPlatformCategory(cat);
+            return (
+            <div key={cat.id} className={`category-card glass animate-fade${platform ? ' platform-category' : ''}`}>
               <div className="card-top">
                 <div className="cat-icon-box">
                   <Grid size={24} />
                 </div>
+                {platform ? (
+                  <span className="platform-badge">Platform</span>
+                ) : (
                 <div className="cat-actions-menu">
                   <button type="button" className="action-circle" onClick={() => openEdit(cat)} title="Edit">
                     <Edit3 size={16} />
@@ -229,6 +269,7 @@ const CategoriesPage = () => {
                     <Trash2 size={16} />
                   </button>
                 </div>
+                )}
               </div>
               <div className="card-body">
                 <h3>{cat.name}</h3>
@@ -237,11 +278,11 @@ const CategoriesPage = () => {
               <div className="card-footer">
                 <div className="product-count">
                   <Tag size={14} />
-                  <span>{cat.channel || 'BOTH'}</span>
+                  <span>{channelLabel(cat.channel || 'BOTH')}</span>
                 </div>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
     </div>

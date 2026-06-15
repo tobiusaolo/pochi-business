@@ -3,9 +3,6 @@ import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 import { STALE } from '../lib/queryClient';
 
-const merchantCategoriesOnly = (list) =>
-  (Array.isArray(list) ? list : []).filter((c) => c.business_id);
-
 export function useBusinessStats() {
   return useQuery({
     queryKey: queryKeys.stats,
@@ -25,8 +22,22 @@ export function useOrders() {
 export function useCategories() {
   return useQuery({
     queryKey: queryKeys.categories,
-    queryFn: () =>
-      api.get('/categories/').then((r) => merchantCategoriesOnly(r.data)),
+    queryFn: async () => {
+      const [assignedRes, platformRes] = await Promise.all([
+        api.get('/categories/').then((r) => r.data || []).catch(() => []),
+        api.get('/catalog/categories/').then((r) => r.data || []).catch(() => []),
+      ]);
+      const byId = new Map();
+      for (const cat of [...platformRes, ...assignedRes]) {
+        if (cat?.id) byId.set(String(cat.id), cat);
+      }
+      return Array.from(byId.values()).sort((a, b) => {
+        const aPlatform = a.business_id == null ? 0 : 1;
+        const bPlatform = b.business_id == null ? 0 : 1;
+        if (aPlatform !== bPlatform) return aPlatform - bPlatform;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    },
     staleTime: STALE.LONG,
   });
 }

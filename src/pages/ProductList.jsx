@@ -17,6 +17,7 @@ import {
 import './ProductList.css';
 import { useNavigate } from 'react-router-dom';
 import { alertSuccess, alertError, confirmDelete } from '../utils/swal';
+import { compressImageFile, MAX_PRODUCT_IMAGES } from '../utils/compressImage';
 import {
   MERCHANT_PRODUCT_CURRENCY,
   DEFAULT_PREVIEW_CURRENCY,
@@ -239,12 +240,22 @@ const ProductList = () => {
       setIsDrawerOpen(false);
       alertSuccess('Product Saved', 'Your product has been saved successfully.');
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      const message = typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-          ? detail.map((e) => e.msg).join(', ')
-          : 'Could not save the product. Please try again.';
+      const status = err.response?.status;
+      let message;
+      if (!err.response) {
+        message =
+          'Could not reach the server — often caused by photos that are too large. Try fewer or smaller images, then save again.';
+      } else if (status === 413) {
+        message =
+          'Product data is too large (usually photos). Remove some images or use smaller files, then try again.';
+      } else {
+        const detail = err.response?.data?.detail;
+        message = typeof detail === 'string'
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((e) => e.msg).join(', ')
+            : 'Could not save the product. Please try again.';
+      }
       alertError('Operation Failed', message);
     } finally {
       setIsPublishing(false);
@@ -567,18 +578,27 @@ const ProductList = () => {
                   <h3>Product Media</h3>
                 </div>
                 <div className="expert-form">
-                  <input type="file" id="p-img" multiple accept="image/*" onChange={(e) => {
-                     const files = Array.from(e.target.files);
-                     files.forEach(file => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => setProductImages(prev => [...prev, reader.result]);
-                        reader.readAsDataURL(file);
-                     });
+                  <input type="file" id="p-img" multiple accept="image/*" onChange={async (e) => {
+                     const files = Array.from(e.target.files || []);
+                     e.target.value = '';
+                     if (!files.length) return;
+                     const slotsLeft = MAX_PRODUCT_IMAGES - productImages.length;
+                     if (slotsLeft <= 0) {
+                       alertError('Image limit', `You can upload up to ${MAX_PRODUCT_IMAGES} images per product.`);
+                       return;
+                     }
+                     const toAdd = files.slice(0, slotsLeft);
+                     try {
+                       const compressed = await Promise.all(toAdd.map((file) => compressImageFile(file)));
+                       setProductImages((prev) => [...prev, ...compressed]);
+                     } catch (imgErr) {
+                       alertError('Upload failed', imgErr.message || 'Could not process image.');
+                     }
                   }} hidden />
                   <label htmlFor="p-img" className="modern-upload-zone glass">
                     <Upload size={32} />
                     <h4>Click to upload photos</h4>
-                    <p>Up to 5 high-quality images</p>
+                    <p>Up to {MAX_PRODUCT_IMAGES} images · auto-compressed for upload</p>
                   </label>
                   <div className="gallery-preview-grid">
                     {productImages.map((img, idx) => (
