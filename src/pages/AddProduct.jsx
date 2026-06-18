@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_BASE } from '../config/api';
 import { useCategories } from '../hooks/queries';
 import { MERCHANT_PRODUCT_CURRENCY, normalizeCurrency, formatMoney } from '../utils/currency';
+import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
 import { Package, Tag, DollarSign, Info, Plus } from 'lucide-react';
 import './AddProduct.css';
 
@@ -20,6 +21,7 @@ const AddProduct = () => {
     minimumOrderQty: '',
     vatPct: '18',
     freeDelivery: 'no',
+    expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
   });
   const [pricePreview, setPricePreview] = useState({
@@ -86,6 +88,7 @@ const AddProduct = () => {
         minimum_order_qty: formData.minimumOrderQty ? parseInt(formData.minimumOrderQty, 10) : null,
         vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
         free_delivery: formData.freeDelivery === 'yes',
+        expected_delivery_time: formData.expectedDeliveryTime,
         bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
       };
 
@@ -140,7 +143,28 @@ const AddProduct = () => {
               <option value="yes">Free delivery</option>
             </select>
             <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              Shown to buyers on the Pochi app product card.
+              Card preview:{' '}
+              {formData.freeDelivery === 'yes' && (
+                <span style={{ color: '#7dd3a8' }}>Free delivery</span>
+              )}
+              {formData.freeDelivery === 'yes' && formData.expectedDeliveryTime && ' · '}
+              {formData.expectedDeliveryTime && (
+                <span>
+                  Delivery: {DELIVERY_TIME_OPTIONS.find((o) => o.value === formData.expectedDeliveryTime)?.label}
+                </span>
+              )}
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label>Expected Delivery Time</label>
+            <select name="expectedDeliveryTime" value={formData.expectedDeliveryTime} onChange={handleChange} required>
+              {DELIVERY_TIME_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Shown on the product card when selected.
             </p>
           </div>
 

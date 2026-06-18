@@ -27,10 +27,11 @@ import {
   enrichProductForViewer,
   formatPublicLocalPrice,
   formatPublicUsdPrice,
-  getProductDeliveryLabel,
+  getProductDeliveryDisplay,
   isFreeDelivery,
   getProductPromotionDisplay,
 } from '../utils/currency';
+import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
 
 const getStockLabel = (product) => {
   const qty = product?.stock_quantity ?? 0;
@@ -109,6 +110,7 @@ const ProductList = () => {
     minimumOrderQty: '',
     vatPct: '18',
     freeDelivery: 'no',
+    expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
   });
 
@@ -199,11 +201,12 @@ const ProductList = () => {
         minimumOrderQty: product.minimum_order_qty?.toString() || '',
         vatPct: (product.vat ?? 18).toString(),
         freeDelivery: isFreeDelivery(product) ? 'yes' : 'no',
+        expectedDeliveryTime: product.expected_delivery_time || DEFAULT_DELIVERY_TIME,
         bulkTiers: product.bulk_tiers || [],
       });
       setProductImages(product.images ? product.images.map(img => img.base64_content) : []);
     } else {
-      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', freeDelivery: 'no', bulkTiers: [] });
+      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', freeDelivery: 'no', expectedDeliveryTime: DEFAULT_DELIVERY_TIME, bulkTiers: [] });
       setProductImages([]);
     }
     setStep(1);
@@ -226,6 +229,7 @@ const ProductList = () => {
         vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
         currency: MERCHANT_PRODUCT_CURRENCY,
         free_delivery: formData.freeDelivery === 'yes',
+        expected_delivery_time: formData.expectedDeliveryTime,
         bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
         images: productImages.map((img, idx) => ({ base64_content: img, sort_order: idx })),
       };
@@ -370,7 +374,7 @@ const ProductList = () => {
       <div className="product-grid-refined">
         {filteredProducts.map(product => {
           const display = getPublicPriceDisplay(product, viewerCurrency, fxRates);
-          const delivery = getProductDeliveryLabel(product);
+          const delivery = getProductDeliveryDisplay(product);
           const promo = getProductPromotionDisplay(product);
           return (
             <div key={product.sku} className="product-card-public animate-fade">
@@ -408,8 +412,17 @@ const ProductList = () => {
                   className="card-price-local"
                 />
                 <p className="card-source">Pochi</p>
-                {delivery && (
-                  <p className="card-delivery is-free">{delivery.text}</p>
+                {delivery.lines.length > 0 && (
+                  <div className="card-delivery-group">
+                    {delivery.lines.map((line) => (
+                      <p
+                        key={line.key}
+                        className={`card-delivery ${line.isFree ? 'is-free' : 'is-time'}`}
+                      >
+                        {line.key === 'time' ? `Delivery: ${line.text}` : line.text}
+                      </p>
+                    ))}
+                  </div>
                 )}
                 {promo?.code && (
                   <p className="card-promo-code">
@@ -500,12 +513,21 @@ const ProductList = () => {
                              />
                              <p className="card-source" style={{ color: 'inherit' }}>Pochi</p>
                              {(() => {
-                               const delivery = getProductDeliveryLabel(selectedProduct);
-                               return delivery ? (
-                                 <p className="card-delivery is-free" style={{ color: 'inherit' }}>
-                                   {delivery.text}
-                                 </p>
-                               ) : null;
+                               const delivery = getProductDeliveryDisplay(selectedProduct);
+                               if (!delivery.lines.length) return null;
+                               return (
+                                 <div className="card-delivery-group">
+                                   {delivery.lines.map((line) => (
+                                     <p
+                                       key={line.key}
+                                       className={`card-delivery ${line.isFree ? 'is-free' : 'is-time'}`}
+                                       style={{ color: line.isFree ? undefined : 'inherit' }}
+                                     >
+                                       {line.key === 'time' ? `Delivery: ${line.text}` : line.text}
+                                     </p>
+                                   ))}
+                                 </div>
+                               );
                              })()}
                              <PublicCardPrice display={display} size="usd" style={{ color: 'inherit' }} />
                            </div>
@@ -646,6 +668,21 @@ const ProductList = () => {
                     <p className="field-help">Enter the tax rate you pay to the tax authority. This is added to the buyer price.</p>
                   </div>
                   <div className="form-field">
+                    <label>Expected Delivery Time</label>
+                    <div className="input-wrapper">
+                      <select
+                        value={formData.expectedDeliveryTime}
+                        onChange={(e) => setFormData({ ...formData, expectedDeliveryTime: e.target.value })}
+                        required
+                      >
+                        {DELIVERY_TIME_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="field-help">When buyers can expect to receive this product after ordering.</p>
+                  </div>
+                  <div className="form-field">
                     <label>Delivery</label>
                     <div className="input-wrapper">
                       <select
@@ -658,10 +695,19 @@ const ProductList = () => {
                     </div>
                     <p className="field-help">
                       Card preview:{' '}
-                      {formData.freeDelivery === 'yes' ? (
+                      {formData.freeDelivery === 'yes' && (
                         <span className="delivery-preview-free">Free delivery</span>
-                      ) : (
-                        <span className="delivery-preview-paid">Hidden on card</span>
+                      )}
+                      {formData.freeDelivery === 'yes' && formData.expectedDeliveryTime && (
+                        <span className="delivery-preview-sep"> · </span>
+                      )}
+                      {formData.expectedDeliveryTime && (
+                        <span className={formData.freeDelivery === 'yes' ? 'delivery-preview-time' : 'delivery-preview-paid'}>
+                          Delivery: {DELIVERY_TIME_OPTIONS.find((o) => o.value === formData.expectedDeliveryTime)?.label}
+                        </span>
+                      )}
+                      {formData.freeDelivery !== 'yes' && !formData.expectedDeliveryTime && (
+                        <span className="delivery-preview-paid">Nothing shown on card</span>
                       )}
                     </p>
                   </div>

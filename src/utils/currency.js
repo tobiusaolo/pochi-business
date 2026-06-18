@@ -1,3 +1,5 @@
+import { deliveryTimeLabel } from './deliveryTime';
+
 export const MERCHANT_PRODUCT_CURRENCY = 'USD';
 
 export const PRODUCT_CURRENCIES = ['USD', 'UGX', 'KES', 'TZS', 'RWF', 'EUR', 'GBP'];
@@ -207,11 +209,38 @@ export const getPublicPriceDisplay = (product, viewerCurrency = 'UGX', fxRates =
 
 export const isFreeDelivery = (product) => product?.free_delivery === true;
 
-/** Public card delivery line — only shown when free delivery is enabled. */
-export const getProductDeliveryLabel = (product) => {
+const hasDeliveryTime = (product) =>
+  Boolean(product?.expected_delivery_time);
+
+/** Card delivery lines — free shipping and/or expected time, each only when set. */
+export const getProductDeliveryDisplay = (product) => {
+  if (!product) return { lines: [] };
+
+  const lines = [];
   if (isFreeDelivery(product)) {
-    return { text: 'Free delivery', isFree: true };
+    lines.push({ key: 'free', text: 'Free delivery', isFree: true });
   }
+  if (hasDeliveryTime(product)) {
+    lines.push({
+      key: 'time',
+      text: deliveryTimeLabel(product.expected_delivery_time),
+      isFree: false,
+    });
+  }
+  return { lines };
+};
+
+/** @deprecated Use getProductDeliveryDisplay */
+export const getProductDeliveryLabel = (product) => {
+  const { lines } = getProductDeliveryDisplay(product);
+  if (!lines.length) return null;
+  const free = lines.find((l) => l.key === 'free');
+  const time = lines.find((l) => l.key === 'time');
+  if (free && time) {
+    return { text: `${free.text} · ${time.text}`, isFree: true, timeText: time.text };
+  }
+  if (free) return { text: free.text, isFree: true };
+  if (time) return { text: `Delivery: ${time.text}`, isFree: false, timeText: time.text };
   return null;
 };
 

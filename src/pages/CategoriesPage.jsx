@@ -19,8 +19,11 @@ import { useNavigate } from 'react-router-dom';
 import { alertSuccess, alertError, alertWarning, confirmDelete } from '../utils/swal';
 import './CategoriesPage.css';
 
-const CHANNELS = ['RETAIL', 'WHOLESALE', 'BOTH'];
-const EMPTY_FORM = { name: '', description: '', channel: 'BOTH' };
+const CHANNELS = ['RETAIL', 'WHOLESALE'];
+const EMPTY_FORM = { name: '', description: '', channel: 'RETAIL' };
+
+const formChannel = (channel) =>
+  channel === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL';
 
 const isPlatformCategory = (cat) => cat.business_id == null;
 
@@ -66,7 +69,7 @@ const CategoriesPage = () => {
     setForm({
       name: cat.name,
       description: cat.description || '',
-      channel: cat.channel || 'BOTH',
+      channel: formChannel(cat.channel),
     });
     setEditingId(cat.id);
     setShowForm(true);

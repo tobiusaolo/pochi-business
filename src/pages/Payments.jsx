@@ -31,6 +31,9 @@ const Payments = () => {
   const { data: disbursements = [], isLoading: disLoading } = usePaymentsDisbursements();
   const { data: payoutAccount } = usePayoutAccount();
 
+  const platformFeePct = summary?.platform_fee_pct ?? null;
+  const platformFeeLabel = platformFeePct != null ? `${platformFeePct}%` : 'platform';
+
   const [tab, setTab] = useState('transactions');
   const [saving, setSaving] = useState(false);
   const [phone, setPhone] = useState('');
@@ -102,7 +105,7 @@ const Payments = () => {
           <div className="pay-card pay-card-earnings">
             <div className="pay-card-icon"><CreditCard size={22} /></div>
             <div className="pay-card-info">
-              <span className="pay-card-label">Your Earnings (after 5% fee)</span>
+              <span className="pay-card-label">Your Earnings (after {platformFeeLabel} fee)</span>
               <span className="pay-card-value">{fmt(summary.total_earnings)}</span>
             </div>
           </div>
@@ -264,7 +267,7 @@ const Payments = () => {
                 <tr>
                   <th>Reference</th>
                   <th>Gross Amount</th>
-                  <th>Platform Fee (5%)</th>
+                  <th>Platform Fee ({platformFeeLabel})</th>
                   <th>Net Paid To You</th>
                   <th>Phone</th>
                   <th>Provider</th>

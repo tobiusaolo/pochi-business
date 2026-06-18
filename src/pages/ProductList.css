@@ -1249,12 +1249,23 @@
 .card-delivery {
     font-size: 13px;
     color: #9aa0a6;
-    margin: 0 0 6px;
+    margin: 0;
     font-weight: 500;
+}
+
+.card-delivery-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 0 6px;
 }
 
 .card-delivery.is-free {
     color: #7dd3a8;
+}
+
+.card-delivery.is-time {
+    color: #9aa0a6;
 }
 
 .card-promo-badge {
