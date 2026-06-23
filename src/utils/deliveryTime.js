@@ -1,5 +1,5 @@
 export const DELIVERY_TIME_OPTIONS = [
-  { value: 'SAME_DAY', label: 'Same day (24hrs)' },
+  { value: 'SAME_DAY', label: '24 hours' },
   { value: 'THREE_DAYS', label: '3 days' },
   { value: 'ONE_WEEK', label: '1 week' },
   { value: 'TWO_WEEKS', label: '2 weeks' },
